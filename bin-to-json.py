@@ -37,13 +37,25 @@ def nat_key(s):
     return [int(t) if t.isdigit() else t for t in re.split(r"(\d+)", s)]
 
 
+def build_stat_index(stats):
+    name_to_id = {}
+    for stat_id, stat in stats.items():
+        name = stat.get("name")
+        if name:
+            name_to_id[name] = stat_id
+    write_json("stat_index.json", name_to_id)
+    return name_to_id
+
+
 def merge(schema, data):
     out = {}
-
     cache = data.get("cache", {})
 
     for appid in schema:
         stats = schema[appid]["stats"]
+
+        # OPTIMIZATION: build once per appid
+        stat_name_to_id = build_stat_index(stats)
 
         for stat_id, stat in stats.items():
             if stat.get("type") not in ("4", "ACHIEVEMENTS"):
@@ -52,19 +64,54 @@ def merge(schema, data):
             bits = stat.get("bits", {})
             group = cache.get(stat_id, {})
             times = group.get("AchievementTimes", {})
-            prog = group.get("AchievementProgress", {})
 
             for i, ach in bits.items():
-                t = times.get(i)
+                name = ach["name"]
 
-                obj = {"earned": t is not None and int(t) != 0, "earned_time": int(t) if t else 0}
+                obj = {}
 
                 prog_info = ach.get("progress")
-                if prog_info and "max_val" in prog_info:
-                    obj["max_progress"] = int(prog_info["max_val"])
-                    obj["progress"] = int(prog_info["min_val"])
 
-                out[ach["name"]] = obj
+                is_stat = prog_info and isinstance(prog_info.get("value"), dict) and prog_info["value"].get("operation") == "statvalue"
+
+                # -------------------------
+                # STAT-BASED ACHIEVEMENTS
+                # -------------------------
+                if is_stat:
+                    operand = prog_info["value"]["operand1"]
+                    stat_key = stat_name_to_id.get(operand)
+
+                    current = 0
+                    if stat_key is not None:
+                        current = cache.get(stat_key, {}).get("data", 0)
+
+                    max_val = prog_info.get("max_val")
+
+                    # Check timestamp first, fall back to progress comparison
+                    t = times.get(i)
+                    if t is not None and int(t) != 0:
+                        obj["earned"] = True
+                        obj["earned_time"] = int(t)
+                    else:
+                        obj["earned"] = max_val is not None and current >= max_val
+                        obj["earned_time"] = 0
+
+                    if max_val is not None:
+                        obj["max_progress"] = int(max_val)
+                        obj["progress"] = min(int(current), int(max_val))  # cap at max
+                    else:
+                        obj["progress"] = int(current)
+
+                # -------------------------
+                # NORMAL ACHIEVEMENTS
+                # -------------------------
+                else:
+                    t = times.get(i)
+
+                    obj["earned"] = t is not None and int(t) != 0
+                    obj["earned_time"] = int(t) if t else 0
+
+                out[name] = obj
 
     return dict(sorted(out.items(), key=lambda x: nat_key(x[0])))
 
