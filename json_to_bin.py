@@ -1,9 +1,14 @@
-import json
 import time
 import os
-import re
 from pathlib import Path
-from utils import nat_key, is_stat_based, read_json, write_json, write_bin, load_steam_stats, parse_schema
+from utils import nat_key, read_json, write_json, write_bin, load_steam_stats, parse_schema
+
+
+def to_signed_int32(value):
+    """Convert an unsigned 32-bit value into signed 32-bit for VDF binary storage."""
+    if value >= 2**31:
+        return value - 2**32
+    return value
 
 
 def merge_achievements(base, patch, schema):
@@ -70,7 +75,7 @@ def apply_achievements(merged, schema, data):
 
     for cache_key, value in stat_true_value.items():
         group = cache.setdefault(cache_key, {})
-        group["data"] = value
+        group["data"] = to_signed_int32(value)
         group["state"] = 2
 
     # --- Pass 2: write bitmasks and timestamps ---
@@ -105,7 +110,7 @@ def apply_achievements(merged, schema, data):
                 else:
                     times.pop(i, None)
 
-            group["data"] = bitmask
+            group["data"] = to_signed_int32(bitmask)
 
     # write_json("bits.json", debug_bits)
     return data
