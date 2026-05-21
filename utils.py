@@ -40,15 +40,20 @@ def find(folder, pattern):
     return matches[0]
 
 
-def load_steam_stats(folder, userid, appid):
+def load_steam_stats(folder, userid, appid, fallback_schema_path=None):
     try:
-        return read_json("schema.json"), read_json("data.json")
-    except FileNotFoundError:
         schema = read_bin(find(folder, f"UserGameStatsSchema_{appid}.bin"))
         data = read_bin(find(folder, f"UserGameStats_{userid}_{appid}.bin"))
-        write_json("schema.json", schema)
-        write_json("data.json", data)
+        # write_json("schema.json", schema)
+        # write_json("data.json", data)
         return schema, data
+    except FileNotFoundError:
+        if fallback_schema_path is None:
+            raise
+        schema = read_bin(find(fallback_schema_path, f"UserGameStatsSchema_{appid}.bin"))
+        write_json("schema.json", schema)
+        empty_data = {"cache": {"crc": 0, "PendingChanges": 1}}
+        return schema, empty_data
 
 
 def parse_schema(schema):

@@ -107,7 +107,7 @@ def apply_achievements(merged, schema, data):
 
             group["data"] = bitmask
 
-    write_json("bits.json", debug_bits)
+    # write_json("bits.json", debug_bits)
     return data
 
 
@@ -126,8 +126,3 @@ if __name__ == "__main__":
 
     write_json("merged_achivements.json", merged)
     write_bin(f"UserGameStats_{userid}_{appid}.bin", steam_bin)
-
-    # Close steam
-    # Wait 1000ms
-    # write_bin(stats_path, steam_bin)
-    # Relaunch Steam
