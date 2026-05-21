@@ -142,57 +142,69 @@ if __name__ == "__main__":
     except SystemExit:
         raise
 
-    appid = console.input("[bold]AppID:[/bold] ").strip()
     userid = cfg["userid"]
     steam_path = cfg["steam_path"]
     emu_path = cfg["emu_path"]
-    emu_schema_path = Path(cfg["emu_schema_path"]) / appid
 
-    try:
-        with Status("[cyan]Loading schema and data...[/cyan]", console=console):
-            schema, data = load_steam_stats(steam_path, userid, appid, emu_schema_path)
-        console.print("[green]✓[/green] Schema and data loaded")
+    appids = []
 
-        with Status("[cyan]Extracting Steam achievements...[/cyan]", console=console):
-            steam_ach = extract_achievements(schema, data)
-            # write_json("achievements.json", steam_ach)
-        console.print(f"[green]✓[/green] Steam achievements extracted ({len(steam_ach)} total)")
+    if mode := console.input("[bold]Select mode:[/bold] [blue]Auto-detect AppIDs from (S)team folder, (E)mu folder, or Single (A)ppID?[/blue] ").strip().lower():
+        if mode == "s":
+            appids = [str(d.name).split(".")[0].split("_")[1] for d in steam_path.iterdir() if d.is_file() and d.name.startswith("UserGameStatsSchema_") and d.name.endswith(".bin")]
+            console.print(f"[green]✓[/green] Auto-detected {len(appids)} AppIDs from Steam folder")
+        elif mode == "e":
+            appids = [d.name for d in emu_path.iterdir() if d.is_dir()]
+            console.print(f"[green]✓[/green] Auto-detected {len(appids)} AppIDs from Emu folder")
+        elif mode == "a":
+            appids.append(console.input("[bold]AppID:[/bold] ").strip())
 
-        emu_ach_path = emu_path / appid / "achievements.json"
+    for appid in appids:
         try:
-            with Status("[cyan]Loading emu achievements...[/cyan]", console=console):
-                emu_ach = read_json(emu_ach_path)
-            console.print(f"[green]✓[/green] Emu achievements loaded from [dim]{emu_ach_path}[/dim]")
-        except FileNotFoundError:
-            console.print("[yellow]⚠[/yellow] No emu achievements found — starting from Steam data")
-            emu_ach = {}
+            emu_schema_path = Path(cfg["emu_schema_path"]) / appid
+            with Status("[cyan]Loading schema and data...[/cyan]", console=console):
+                schema, data = load_steam_stats(steam_path, userid, appid, emu_schema_path)
+            console.print("[green]✓[/green] Schema and data loaded")
 
-        with Status("[cyan]Merging achievements...[/cyan]", console=console):
-            merged = merge_achievements(base=steam_ach, patch=emu_ach, schema=schema)
-            # write_json("merged_achievements.json", merged)
-        console.print("[green]✓[/green] Achievements merged")
+            with Status("[cyan]Extracting Steam achievements...[/cyan]", console=console):
+                steam_ach = extract_achievements(schema, data)
+                # write_json("achievements.json", steam_ach)
+            console.print(f"[green]✓[/green] Steam achievements extracted ({len(steam_ach)} total)")
 
-        steam_bin_path = steam_path / f"UserGameStats_{userid}_{appid}.bin"
-        with Status("[cyan]Writing files...[/cyan]", console=console):
-            backup_file(emu_ach_path)
-            backup_file(steam_bin_path)
+            emu_ach_path = emu_path / appid / "achievements.json"
+            try:
+                with Status("[cyan]Loading emu achievements...[/cyan]", console=console):
+                    emu_ach = read_json(emu_ach_path)
+                console.print(f"[green]✓[/green] Emu achievements loaded from [dim]{emu_ach_path}[/dim]")
+            except FileNotFoundError:
+                console.print("[yellow]⚠[/yellow] No emu achievements found — starting from Steam data")
+                emu_ach = {}
 
-            steam_bin = apply_achievements(merged, schema, data)
-            write_bin(steam_bin_path, steam_bin)
+            with Status("[cyan]Merging achievements...[/cyan]", console=console):
+                merged = merge_achievements(base=steam_ach, patch=emu_ach, schema=schema)
+                # write_json("merged_achievements.json", merged)
+            console.print("[green]✓[/green] Achievements merged")
 
-            emu_ach_path.parent.mkdir(parents=True, exist_ok=True)
-            write_json(emu_ach_path, merged)
+            steam_bin_path = steam_path / f"UserGameStats_{userid}_{appid}.bin"
+            with Status("[cyan]Writing files...[/cyan]", console=console):
+                backup_file(emu_ach_path)
+                backup_file(steam_bin_path)
 
-        console.print(f"[green]✓[/green] Bin written to [dim]{steam_bin_path}[/dim]")
-        console.print(f"[green]✓[/green] Emu achievements written to [dim]{emu_ach_path}[/dim]")
+                steam_bin = apply_achievements(merged, schema, data)
+                write_bin(steam_bin_path, steam_bin)
 
-    except Exception as e:
-        console.print(f"\n[bold red]Unexpected error:[/bold red] {e}")
-        raise
+                emu_ach_path.parent.mkdir(parents=True, exist_ok=True)
+                write_json(emu_ach_path, merged)
 
-    changes = diff_achievements(steam_ach, merged)
-    print_diff_table(changes)
+            console.print(f"[green]✓[/green] Bin written to [dim]{steam_bin_path}[/dim]")
+            console.print(f"[green]✓[/green] Emu achievements written to [dim]{emu_ach_path}[/dim]")
 
-    earned_total = sum(1 for a in merged.values() if a.get("earned"))
-    console.print(f"\n[bold]Earned:[/bold] {earned_total}/{len(merged)}")
-    console.rule("[dim]Done[/dim]")
+        except Exception as e:
+            console.print(f"\n[bold red]Unexpected error:[/bold red] {e}")
+            raise
+
+        changes = diff_achievements(steam_ach, merged)
+        print_diff_table(changes)
+
+        earned_total = sum(1 for a in merged.values() if a.get("earned"))
+        console.print(f"\n[bold]Earned:[/bold] {earned_total}/{len(merged)}")
+        console.rule("[dim]Done[/dim]")

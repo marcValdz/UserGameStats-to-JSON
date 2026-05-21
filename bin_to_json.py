@@ -28,7 +28,7 @@ def extract_achievements(schema, data):
                 if is_stat_based(prog_info):
                     operand, max_val, cache_key = ach_to_stat[name]
                     current = cache.get(cache_key, {}).get("data", 0)
-                    max_val = prog_info.get("max_val")
+                    max_val = int(prog_info.get("max_val"))
 
                     # Check timestamp first, fall back to progress comparison
                     t = times.get(i)

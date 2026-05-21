@@ -4,6 +4,10 @@ import json
 import re
 from pathlib import Path
 
+from rich.console import Console
+
+console = Console()
+
 
 def nat_key(s):
     return [int(t) if t.isdigit() else t for t in re.split(r"(\d+)", s)]
@@ -50,6 +54,7 @@ def load_steam_stats(folder, userid, appid, fallback_schema_path=None):
     except FileNotFoundError:
         if fallback_schema_path is None:
             raise
+        console.print(f"[yellow]Warning: Steam stats not found for appid {appid} and userid {userid}. Using fallback schema from {fallback_schema_path}.[/yellow]")
         schema = read_bin(find(fallback_schema_path, f"UserGameStatsSchema_{appid}.bin"))
         write_json("schema.json", schema)
         empty_data = {"cache": {"crc": 0, "PendingChanges": 1}}
