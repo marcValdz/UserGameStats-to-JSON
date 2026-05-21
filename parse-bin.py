@@ -1,24 +1,13 @@
-import vdf
-import json
-from pathlib import Path
-
-
-def write_json(path, data):
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-
-
-def load_bin(file, path):
-    with open(Path(path), "rb") as f:
-        bin = vdf.binary_loads(f.read())
-    write_json(file, bin)
+from utils import read_bin, write_json
 
 
 if __name__ == "__main__":
     path = input("Path to UserGameStats*.bin: ").strip('"')
     if path.find("Schema") != -1:
         print("Detected Schema File (UserGameStatsSchema.bin)")
-        load_bin("schema.json", path)
+        schema = read_bin(path)
+        write_json("schema.json", schema)
     else:
         print("Detected Data File (UserGameStats.bin)")
-        load_bin("data.json", path)
+        data = read_bin(path)
+        write_json("data.json", data)
