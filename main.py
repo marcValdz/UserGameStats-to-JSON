@@ -1,0 +1,151 @@
+import os
+import configparser
+from pathlib import Path
+
+from rich.console import Console
+from rich.status import Status
+from rich.table import Table
+from rich import print as rprint
+
+from utils import read_json, write_json, write_bin, load_steam_stats
+from bin_to_json import extract_achievements
+from json_to_bin import merge_achievements, apply_achievements
+
+CONFIG_PATH = Path("config.ini")
+console = Console()
+
+
+def load_config():
+    if not CONFIG_PATH.exists():
+        console.print(f"[yellow]Config file not found: {CONFIG_PATH}[/yellow]")
+        console.print("[yellow]Creating default config.ini — please fill in the values and rerun.[/yellow]")
+        default = configparser.ConfigParser()
+        default["paths"] = {
+            "steam_path": r"C:\Program Files (x86)\Steam\appcache\stats",
+            "emu_path": r"%APPDATA%\GSE Saves",
+        }
+        default["user"] = {
+            "userid": "0",
+        }
+        with open(CONFIG_PATH, "w") as f:
+            default.write(f)
+        raise SystemExit
+
+    cfg = configparser.ConfigParser(interpolation=None)
+    cfg.read(CONFIG_PATH)
+
+    return {
+        "steam_path": Path(os.path.expandvars(cfg["paths"]["steam_path"])),
+        "emu_path": Path(os.path.expandvars(cfg["paths"]["emu_path"])),
+        "userid": int(cfg["user"]["userid"]),
+    }
+
+
+def diff_achievements(steam, merged):
+    """Return list of (name, old, new) for achievements that changed state."""
+    changes = []
+    for name, new in merged.items():
+        old = steam.get(name, {})
+        earned_changed = old.get("earned") != new.get("earned")
+        progress_changed = old.get("progress") != new.get("progress")
+        if earned_changed or progress_changed:
+            changes.append((name, old, new))
+    return changes
+
+
+def print_diff_table(changes):
+    if not changes:
+        console.print("\n[dim]No achievement changes.[/dim]")
+        return
+
+    table = Table(title="Achievement Changes", header_style="bold cyan")
+    table.add_column("Achievement", style="bold")
+    table.add_column("Earned", justify="center")
+    table.add_column("Progress", justify="right")
+
+    for name, old, new in sorted(changes):
+        earned_old = old.get("earned", False)
+        earned_new = new.get("earned", False)
+        prog_old = old.get("progress", 0)
+        prog_new = new.get("progress", 0)
+        max_prog = new.get("max_progress")
+
+        if earned_old != earned_new:
+            earned_str = "[red]✗[/red] → [green]✓[/green]" if earned_new else "[green]✓[/green] → [red]✗[/red]"
+        else:
+            earned_str = "[green]✓[/green]" if earned_new else "[red]✗[/red]"
+
+        if max_prog is not None:
+            progress_str = f"{prog_old}/{max_prog} → [cyan]{prog_new}/{max_prog}[/cyan]"
+        else:
+            progress_str = ""
+
+        table.add_row(name, earned_str, progress_str)
+
+    console.print()
+    console.print(table)
+
+
+if __name__ == "__main__":
+    console.rule("[bold cyan]Steam ↔ Emu Achievement Sync[/bold cyan]")
+
+    try:
+        cfg = load_config()
+    except SystemExit:
+        raise
+
+    appid = console.input("[bold]AppID:[/bold] ").strip()
+
+    userid = cfg["userid"]
+    steam_path = cfg["steam_path"]
+    emu_path = cfg["emu_path"]
+
+    try:
+        with Status("[cyan]Loading schema and data...[/cyan]", console=console):
+            schema, data = load_steam_stats(steam_path, userid, appid)
+        console.print("[green]✓[/green] Schema and data loaded")
+
+        with Status("[cyan]Extracting Steam achievements...[/cyan]", console=console):
+            steam_ach = extract_achievements(schema, data)
+            write_json("achievements.json", steam_ach)
+        console.print(f"[green]✓[/green] Steam achievements extracted ({len(steam_ach)} total)")
+
+        with Status("[cyan]Loading emu achievements...[/cyan]", console=console):
+            emu_ach_path = emu_path / appid / "achievements.json"
+            emu_ach = read_json(emu_ach_path)
+        console.print(f"[green]✓[/green] Emu achievements loaded from [dim]{emu_ach_path}[/dim]")
+
+        with Status("[cyan]Merging achievements...[/cyan]", console=console):
+            merged = merge_achievements(base=steam_ach, patch=emu_ach, schema=schema)
+            write_json("merged_achievements.json", merged)
+        console.print("[green]✓[/green] Achievements merged")
+
+        with Status("[cyan]Writing files...[/cyan]", console=console):
+            bin_path = steam_path / f"UserGameStats_{userid}_{appid}.bin"
+            emu_ach_path = emu_path / appid / "achievements.json"
+
+            # Backup files before overwriting
+            if bin_path.exists():
+                bin_path.replace(bin_path.with_suffix(".bin.bak"))
+            if emu_ach_path.exists():
+                emu_ach_path.replace(emu_ach_path.with_suffix(".json.bak"))
+
+            steam_bin = apply_achievements(merged, schema, data)
+            write_bin(bin_path, steam_bin)
+            write_json(emu_ach_path, merged)
+        console.print(f"[green]✓[/green] Bin written to [dim]{bin_path}[/dim]")
+        console.print(f"[green]✓[/green] Emu achievements written to [dim]{emu_ach_path}[/dim]")
+
+    except FileNotFoundError as e:
+        console.print(f"\n[bold red]Error:[/bold red] File not found — {e}")
+        raise SystemExit
+    except Exception as e:
+        console.print(f"\n[bold red]Unexpected error:[/bold red] {e}")
+        raise
+
+    changes = diff_achievements(steam_ach, merged)
+    print_diff_table(changes)
+
+    earned_total = sum(1 for a in merged.values() if a.get("earned"))
+    console.print(f"\n[bold]Earned:[/bold] {earned_total}/{len(merged)}")
+    console.rule("[dim]Done[/dim]")
