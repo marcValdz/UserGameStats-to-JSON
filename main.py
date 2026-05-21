@@ -1,4 +1,5 @@
 import os
+import subprocess
 import configparser
 from pathlib import Path
 from datetime import datetime
@@ -98,7 +99,42 @@ def backup_file(path: Path):
     path.replace(backup)
 
 
+def steam_is_running():
+    if os.name != "nt":
+        return False
+
+    result = subprocess.run(
+        ["tasklist", "/fi", "imagename eq steam.exe", "/nh"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    output = result.stdout.strip()
+    return bool(output and "steam.exe" in output.lower())
+
+
+def close_steam():
+    if os.name != "nt":
+        return
+
+    subprocess.run(
+        ["taskkill", "/f", "/im", "steam.exe", "/t"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def ensure_steam_closed():
+    if steam_is_running():
+        console.print("[yellow]Steam is running. Closing Steam to avoid file conflicts...[/yellow]")
+        close_steam()
+        console.print("[green]✓[/green] Steam close command issued")
+
+
 if __name__ == "__main__":
+    ensure_steam_closed()
+
     console.rule("[bold cyan]Steam ↔ Emu Achievement Sync[/bold cyan]")
 
     try:
