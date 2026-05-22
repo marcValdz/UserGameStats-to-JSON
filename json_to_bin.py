@@ -1,7 +1,10 @@
 import time
-import os
-from pathlib import Path
+from rich.console import Console
+
 from utils import nat_key, read_json, write_json, write_bin, load_steam_stats, parse_schema
+from config import load_config
+
+console = Console()
 
 
 def to_signed_int32(value):
@@ -59,7 +62,6 @@ def merge_achievements(base, patch, schema):
 
 def apply_achievements(merged, schema, data):
     cache = data.get("cache", {})
-    debug_bits = {}
 
     _, ach_to_stat = parse_schema(schema)
 
@@ -96,10 +98,6 @@ def apply_achievements(merged, schema, data):
                 state = merged.get(name)
                 bit_index = int(i)
 
-                # Keep track of bit mapping — can change between game updates
-                #   when developers add or remove achievement/stat entries
-                debug_bits.setdefault(schema_stat_id, {})[name] = bit_index
-
                 if not state:
                     continue
 
@@ -112,22 +110,38 @@ def apply_achievements(merged, schema, data):
 
             group["data"] = to_signed_int32(bitmask)
 
-    # write_json("bits.json", debug_bits)
     return data
 
 
 if __name__ == "__main__":
+    try:
+        cfg = load_config()
+    except SystemExit:
+        raise
+
+    userid = cfg["userid"]
+    steam_path = cfg["steam_path"]
+    emu_path = cfg["emu_path"]
+
     appid = input("AppID: ")
-    userid = 243977152
-    stats_path = Path(r"C:\Program Files (x86)\Steam\appcache\stats")
 
-    schema, data = load_steam_stats(stats_path, userid, appid)
+    schema, data = load_steam_stats(steam_path, userid, appid)
 
-    b = read_json("achievements.json")
-    p = read_json(Path(os.environ["APPDATA"]) / "GSE Saves" / f"{appid}" / "achievements.json")
+    try:
+        b = read_json("achievements.json")
+    except FileNotFoundError:
+        console.print("[red]Error: achievements.json not found. Please run `python bin_to_json.py` first.[/red]")
+        raise
+
+    try:
+        p = read_json(emu_path / f"{appid}" / "achievements.json")
+    except FileNotFoundError:
+        console.print("[red]Error: achievements.json not found in emu path.[/red]")
+        raise
+
     merged = merge_achievements(b, p, schema)
 
     steam_bin = apply_achievements(merged, schema, data)
 
-    write_json("merged_achivements.json", merged)
+    write_json("merged_achievements.json", merged)
     write_bin(f"UserGameStats_{userid}_{appid}.bin", steam_bin)

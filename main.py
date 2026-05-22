@@ -1,6 +1,5 @@
 import os
 import subprocess
-import configparser
 from pathlib import Path
 from datetime import datetime
 
@@ -11,37 +10,9 @@ from rich.table import Table
 from utils import read_json, write_json, write_bin, load_steam_stats
 from bin_to_json import extract_achievements
 from json_to_bin import merge_achievements, apply_achievements
+from config import load_config
 
-CONFIG_PATH = Path("config.ini")
 console = Console()
-
-
-def load_config():
-    if not CONFIG_PATH.exists():
-        console.print(f"[yellow]Config file not found: {CONFIG_PATH}[/yellow]")
-        console.print("[yellow]Creating default config.ini — please fill in the values and rerun.[/yellow]")
-        default = configparser.ConfigParser()
-        default["paths"] = {
-            "steam_path": r"C:\Program Files (x86)\Steam\appcache\stats",
-            "emu_path": r"%APPDATA%\GSE Saves",
-            "emu_schema_path": r"\path\to\generate_emu_config\backup",
-        }
-        default["user"] = {
-            "userid": "0",
-        }
-        with open(CONFIG_PATH, "w") as f:
-            default.write(f)
-        raise SystemExit
-
-    cfg = configparser.ConfigParser(interpolation=None)
-    cfg.read(CONFIG_PATH)
-
-    return {
-        "steam_path": Path(os.path.expandvars(cfg["paths"]["steam_path"])),
-        "emu_path": Path(os.path.expandvars(cfg["paths"]["emu_path"])),
-        "emu_schema_path": Path(os.path.expandvars(cfg["paths"]["emu_schema_path"])),
-        "userid": int(cfg["user"]["userid"]),
-    }
 
 
 def diff_achievements(steam, merged):

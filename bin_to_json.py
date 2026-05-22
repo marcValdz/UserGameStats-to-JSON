@@ -1,5 +1,5 @@
-from pathlib import Path
 from utils import nat_key, is_stat_based, load_steam_stats, write_json, parse_schema
+from config import load_config
 
 
 def extract_achievements(schema, data):
@@ -60,10 +60,17 @@ def extract_achievements(schema, data):
 
 
 if __name__ == "__main__":
-    appid = input("AppID: ")
-    userid = 243977152
-    stats_path = Path(r"C:\Program Files (x86)\Steam\appcache\stats")
+    try:
+        cfg = load_config()
+    except SystemExit:
+        raise
 
-    schema, data = load_steam_stats(stats_path, userid, appid)
+    userid = cfg["userid"]
+    steam_path = cfg["steam_path"]
+    emu_path = cfg["emu_path"]
+
+    appid = input("AppID: ")
+
+    schema, data = load_steam_stats(steam_path, userid, appid)
     ach_json = extract_achievements(schema, data)
     write_json("achievements.json", ach_json)
