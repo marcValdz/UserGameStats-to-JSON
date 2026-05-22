@@ -45,20 +45,31 @@ def find(folder, pattern):
 
 
 def load_steam_stats(folder, userid, appid, fallback_schema_path=None):
-    try:
-        schema = read_bin(find(folder, f"UserGameStatsSchema_{appid}.bin"))
-        data = read_bin(find(folder, f"UserGameStats_{userid}_{appid}.bin"))
-        # write_json("schema.json", schema)
-        # write_json("data.json", data)
-        return schema, data
-    except FileNotFoundError:
-        if fallback_schema_path is None:
-            raise
+    schema_file = f"UserGameStatsSchema_{appid}.bin"
+    schema_path = find(folder, schema_file)
+    is_fallback = False
+
+    if not schema_path:
+        if not fallback_schema_path:
+            raise FileNotFoundError(f"Steam stats not found for appid {appid} and userid {userid}, and no fallback schema path provided.")
+
+        schema_path = find(fallback_schema_path, schema_file)
+        if not schema_path:
+            raise FileNotFoundError(f"Fallback schema not found for appid {appid}.")
+
+        is_fallback = True
+
+    if is_fallback:
         console.print(f"[yellow]Warning: Steam stats not found for appid {appid} and userid {userid}. Using fallback schema from {fallback_schema_path}.[/yellow]")
-        schema = read_bin(find(fallback_schema_path, f"UserGameStatsSchema_{appid}.bin"))
-        write_json("schema.json", schema)
-        empty_data = {"cache": {"crc": 0, "PendingChanges": 1}}
-        return schema, empty_data
+        schema = read_bin(schema_path)
+        data = {"cache": {"crc": 0, "PendingChanges": 1}}
+    else:
+        data_path = find(folder, f"UserGameStats_{userid}_{appid}.bin")
+
+        schema = read_bin(schema_path)
+        data = read_bin(data_path)
+
+    return schema, data
 
 
 def parse_schema(schema):
