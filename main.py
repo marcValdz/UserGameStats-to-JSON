@@ -4,16 +4,13 @@ import subprocess
 from pathlib import Path
 from datetime import datetime
 
-from rich.console import Console
 from rich.status import Status
 from rich.table import Table
 
-from utils import read_json, write_json, write_bin, load_steam_stats
+from utils import console, read_json, write_json, write_bin, load_steam_stats
 from bin_to_json import extract_achievements
 from json_to_bin import merge_achievements, apply_achievements
 from config import load_config
-
-console = Console()
 
 
 def diff_achievements(steam, merged):
@@ -60,6 +57,7 @@ def print_diff_table(changes):
     console.print()
     console.print(table)
     return True
+
 
 def backup_file(path: Path):
     if not path.exists():
@@ -129,7 +127,7 @@ if __name__ == "__main__":
                 merged = steam_ach
 
             steam_bin = apply_achievements(merged, schema, data)
-        
+
         has_changes = False
 
         console.print(f"[green]✓[/green] Steam data loaded ({len(steam_ach)} achievements found)")
@@ -141,7 +139,7 @@ if __name__ == "__main__":
             has_changes = print_diff_table(changes)
         else:
             console.print("[yellow]⚠[/yellow] No emu data found - building `achievements.json` file from Steam data")
-        
+
         # --- 3. BACKUPS & FILE WRITING ---
         with Status("[cyan]Securing backups and writing files...[/cyan]", console=console):
             if not is_fallback and emu_ach is not None and has_changes:
@@ -150,6 +148,7 @@ if __name__ == "__main__":
             elif is_fallback:
                 if steam_schema.exists():
                     backup_file(steam_schema)
+                steam_schema.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(emu_schema_path / f"UserGameStatsSchema_{appid}.bin", steam_schema)
 
             steam_bin_path.parent.mkdir(parents=True, exist_ok=True)
@@ -164,3 +163,4 @@ if __name__ == "__main__":
         earned_total = sum(1 for a in merged.values() if a.get("earned"))
         console.print(f"\n[bold]Final Count:[/bold] {earned_total}/{len(merged)} unlocked")
         console.rule("[dim]Done[/dim]")
+    console.save_text("session.log")

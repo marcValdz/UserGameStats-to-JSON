@@ -6,7 +6,7 @@ from pathlib import Path
 
 from rich.console import Console
 
-console = Console()
+console = Console(log_time=True, record=True)
 
 
 def nat_key(s):

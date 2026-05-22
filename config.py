@@ -2,10 +2,9 @@ import configparser
 import os
 from pathlib import Path
 
-from rich.console import Console
+from utils import console
 
 CONFIG_PATH = Path("config.ini")
-console = Console()
 
 
 def load_config():

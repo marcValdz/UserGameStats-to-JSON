@@ -1,4 +1,4 @@
-from utils import nat_key, is_stat_based, load_steam_stats, write_json, parse_schema
+from utils import console, nat_key, is_stat_based, load_steam_stats, write_json, parse_schema
 from config import load_config
 
 
@@ -71,6 +71,10 @@ if __name__ == "__main__":
 
     appid = input("AppID: ")
 
-    schema, data, _ = load_steam_stats(steam_path, userid, appid)
-    ach_json = extract_achievements(schema, data)
-    write_json("achievements.json", ach_json)
+    try:
+        schema, data, _ = load_steam_stats(steam_path, userid, appid)
+        ach_json = extract_achievements(schema, data)
+        write_json("achievements.json", ach_json)
+    except Exception as e:
+        console.print(f"[red]Error loading Steam stats for AppID {appid}: {e}. Exiting.[/red]")
+        SystemExit(1)

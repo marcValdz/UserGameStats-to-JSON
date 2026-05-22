@@ -1,10 +1,7 @@
 import time
-from rich.console import Console
 
-from utils import nat_key, read_json, write_json, write_bin, load_steam_stats, parse_schema
+from utils import console, nat_key, read_json, write_json, write_bin, load_steam_stats, parse_schema
 from config import load_config
-
-console = Console()
 
 
 def to_signed_int32(value):
