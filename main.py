@@ -1,4 +1,5 @@
 import os
+import shutil
 import subprocess
 from pathlib import Path
 from datetime import datetime
@@ -29,8 +30,8 @@ def diff_achievements(steam, merged):
 
 def print_diff_table(changes):
     if not changes:
-        console.print("\n[dim]No achievement changes.[/dim]")
-        return
+        console.print("\n[dim]No new achievements to sync (everything is up to date).[/dim]")
+        return False
 
     table = Table(title="Achievement Changes", header_style="bold cyan")
     table.add_column("Achievement", style="bold")
@@ -58,7 +59,7 @@ def print_diff_table(changes):
 
     console.print()
     console.print(table)
-
+    return True
 
 def backup_file(path: Path):
     if not path.exists():
@@ -93,9 +94,8 @@ if __name__ == "__main__":
         raise
 
     userid = cfg["userid"]
-    steam_path = cfg["steam_path"]
-    emu_path = cfg["emu_path"]
-
+    steam_path = Path(cfg["steam_path"])
+    emu_path = Path(cfg["emu_path"])
     appids = []
 
     if mode := console.input("[bold]Select mode:[/bold] [blue]Auto-detect AppIDs from (S)team folder, (E)mu folder, or Single (A)ppID?[/blue] ").strip().lower():
@@ -109,47 +109,58 @@ if __name__ == "__main__":
             appids.append(console.input("[bold]AppID:[/bold] ").strip())
 
     for appid in appids:
-        emu_schema_path = Path(cfg["emu_schema_path"]) / appid
-        with Status("[cyan]Loading schema and data...[/cyan]", console=console):
-            schema, data = load_steam_stats(steam_path, userid, appid, emu_schema_path)
-        console.print("[green]✓[/green] Schema and data loaded")
-
-        with Status("[cyan]Extracting Steam achievements...[/cyan]", console=console):
-            steam_ach = extract_achievements(schema, data)
-            # write_json("achievements.json", steam_ach)
-        console.print(f"[green]✓[/green] Steam achievements extracted ({len(steam_ach)} total)")
-
+        # --- 1. SETUP PATHS ---
         emu_ach_path = emu_path / appid / "achievements.json"
-        try:
-            with Status("[cyan]Loading emu achievements...[/cyan]", console=console):
-                emu_ach = read_json(emu_ach_path)
-            console.print(f"[green]✓[/green] Emu achievements loaded from [dim]{emu_ach_path}[/dim]")
-        except FileNotFoundError:
-            console.print("[yellow]⚠[/yellow] No emu achievements found — starting from Steam data")
-            emu_ach = {}
-
-        with Status("[cyan]Merging achievements...[/cyan]", console=console):
-            merged = merge_achievements(base=steam_ach, patch=emu_ach, schema=schema)
-            # write_json("merged_achievements.json", merged)
-        console.print("[green]✓[/green] Achievements merged")
+        emu_schema_path = Path(cfg["emu_schema_path"]) / appid
 
         steam_bin_path = steam_path / f"UserGameStats_{userid}_{appid}.bin"
-        with Status("[cyan]Writing files...[/cyan]", console=console):
-            backup_file(emu_ach_path)
-            backup_file(steam_bin_path)
+        steam_schema = steam_path / f"UserGameStatsSchema_{appid}.bin"
+
+        # --- 2. DATA LOADING & PROCESSING ---
+        with Status(f"[cyan]Processing AppID {appid}...[/cyan]", console=console):
+            schema, data, is_fallback = load_steam_stats(steam_path, userid, appid, emu_schema_path)
+            steam_ach = extract_achievements(schema, data)
+
+            try:
+                emu_ach = read_json(emu_ach_path)
+                merged = merge_achievements(base=steam_ach, patch=emu_ach, schema=schema)
+            except FileNotFoundError:
+                emu_ach = None
+                merged = steam_ach
 
             steam_bin = apply_achievements(merged, schema, data)
+        
+        has_changes = False
+
+        console.print(f"[green]✓[/green] Steam data loaded ({len(steam_ach)} achievements found)")
+        if is_fallback:
+            console.print("[yellow]⚠[/yellow] Local Steam data missing. Generating fresh Steam .bin using your emulator history")
+        elif emu_ach is not None:
+            console.print(f"[green]✓[/green] Emu achievements merged from [dim]{emu_ach_path}[/dim]")
+            changes = diff_achievements(steam_ach, merged)
+            has_changes = print_diff_table(changes)
+        else:
+            console.print("[yellow]⚠[/yellow] No emu data found - building `achievements.json` file from Steam data")
+        
+        # --- 3. BACKUPS & FILE WRITING ---
+        with Status("[cyan]Securing backups and writing files...[/cyan]", console=console):
+            if not is_fallback and emu_ach is not None and has_changes:
+                backup_file(steam_bin_path)
+                backup_file(emu_ach_path)
+            elif is_fallback:
+                if steam_schema.exists():
+                    backup_file(steam_schema)
+                shutil.copyfile(emu_schema_path / f"UserGameStatsSchema_{appid}.bin", steam_schema)
+
+            steam_bin_path.parent.mkdir(parents=True, exist_ok=True)
             write_bin(steam_bin_path, steam_bin)
 
             emu_ach_path.parent.mkdir(parents=True, exist_ok=True)
             write_json(emu_ach_path, merged)
 
-        console.print(f"[green]✓[/green] Bin written to [dim]{steam_bin_path}[/dim]")
-        console.print(f"[green]✓[/green] Emu achievements written to [dim]{emu_ach_path}[/dim]")
-
-        changes = diff_achievements(steam_ach, merged)
-        print_diff_table(changes)
+        console.print(f"[green]✓[/green] Bin updated: [dim]{steam_bin_path}[/dim]")
+        console.print(f"[green]✓[/green] Emu json updated: [dim]{emu_ach_path}[/dim]")
 
         earned_total = sum(1 for a in merged.values() if a.get("earned"))
-        console.print(f"\n[bold]Earned:[/bold] {earned_total}/{len(merged)}")
+        console.print(f"\n[bold]Final Count:[/bold] {earned_total}/{len(merged)} unlocked")
         console.rule("[dim]Done[/dim]")

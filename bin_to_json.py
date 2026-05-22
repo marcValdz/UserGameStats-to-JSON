@@ -71,6 +71,6 @@ if __name__ == "__main__":
 
     appid = input("AppID: ")
 
-    schema, data = load_steam_stats(steam_path, userid, appid)
+    schema, data, _ = load_steam_stats(steam_path, userid, appid)
     ach_json = extract_achievements(schema, data)
     write_json("achievements.json", ach_json)

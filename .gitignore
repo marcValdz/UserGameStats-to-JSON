@@ -1,5 +1,7 @@
 /__pycache__
 /backup
+/saves
+/stats
 *.json
 *.bin
 *.ini
