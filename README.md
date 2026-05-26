@@ -46,13 +46,22 @@ If `config.ini` is missing, `main.py` will create a default file and prompt you 
 
 ## Usage
 
-Run the main sync tool from the project root:
+Run the main sync tool from the project root. You can pass one or more AppIDs directly, or auto-detect them from your Steam or emulator folders.
 
 ```bash
-python main.py
+python main.py 2215200
+python main.py 2215200 1091500
+python main.py --from stats
+python main.py --from saves
+python main.py --local 2215200
 ```
 
-Enter the target `AppID` when prompted.
+### CLI arguments
+
+- `AppID` — one or more explicit Steam AppIDs to process.
+- `--from stats` — auto-detect AppIDs from Steam `UserGameStatsSchema_*.bin` files.
+- `--from saves` — auto-detect AppIDs from emulator save subfolders.
+- `--local` — load from local `/stats` and `/saves` paths.
 
 ### Output files
 
