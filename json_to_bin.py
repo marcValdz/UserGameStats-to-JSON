@@ -44,12 +44,22 @@ def merge_achievements(base, patch, schema):
             merged["progress"] = min(true_val, max_val)
             earned = true_val >= max_val
         else:
-            earned = p.get("earned", b.get("earned", False))
+            # Explicitly check if either base OR patch marked it as earned
+            earned = b.get("earned", False) or p.get("earned", False)
 
         merged["earned"] = earned
-        bt = b.get("earned_time", 0)
-        pt = p.get("earned_time", 0)
-        merged["earned_time"] = (min(bt, pt) if bt and pt else bt or pt) if earned else 0
+        
+        # Pull timestamps, ignoring 0 or None
+        bt = b.get("earned_time")
+        pt = p.get("earned_time")
+        
+        if earned:
+            # Filter out falsy timestamps (0 or None)
+            valid_times = [t for t in [bt, pt] if t]
+            # Take the earliest completion time, fallback to 0 if no timestamp exists
+            merged["earned_time"] = min(valid_times) if valid_times else 0
+        else:
+            merged["earned_time"] = 0
 
         out[k] = merged
 
