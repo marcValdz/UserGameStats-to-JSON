@@ -126,18 +126,15 @@ def apply_achievements(merged, schema, data):
 
 
 def main():
-    try:
-        cfg = load_config()
-    except SystemExit:
-        raise
+    cfg = load_config()
 
     userid = cfg["userid"]
-    steam_path = cfg["steam_path"]
-    emu_path = cfg["emu_path"]
+    stats_path = cfg["stats_path"]
+    saves_path = cfg["saves_path"]
 
     appid = input("AppID: ")
 
-    schema, data, _ = load_steam_stats(steam_path, userid, appid)
+    schema, data, _ = load_steam_stats(stats_path, userid, appid)
 
     try:
         b = read_json("achievements.json")
@@ -146,7 +143,7 @@ def main():
         raise
 
     try:
-        p = read_json(emu_path / f"{appid}" / "achievements.json")
+        p = read_json(saves_path / appid / "achievements.json")
     except FileNotFoundError:
         console.print("[red]Error: achievements.json not found in emu path.[/red]")
         raise

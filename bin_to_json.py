@@ -60,23 +60,20 @@ def extract_achievements(schema, data):
 
 
 def main():
-    try:
-        cfg = load_config()
-    except SystemExit:
-        raise
+    cfg = load_config()
 
     userid = cfg["userid"]
-    steam_path = cfg["steam_path"]
+    stats_path = cfg["stats_path"]
 
     appid = input("AppID: ")
 
     try:
-        schema, data, _ = load_steam_stats(steam_path, userid, appid)
+        schema, data, _ = load_steam_stats(stats_path, userid, appid)
         ach_json = extract_achievements(schema, data)
         write_json("achievements.json", ach_json)
     except Exception as e:
         console.print(f"[red]Error loading Steam stats for AppID {appid}: {e}. Exiting.[/red]")
-        SystemExit(1)
+        raise SystemExit(1) from e
 
 
 if __name__ == "__main__":
