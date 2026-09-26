@@ -47,6 +47,7 @@ def load_config(local=False):
     return {
         "stats_path": check_path(stats_path, "stats_path"),
         "saves_path": check_path(saves_path, "saves_path"),
-        "emu_schema_path": check_path(emu_schema_path, "emu_schema_path"),
+        # Only a fallback for apps Steam has no schema for, so it may not exist
+        "emu_schema_path": emu_schema_path,
         "userid": int(cfg["user"]["userid"]),
     }
