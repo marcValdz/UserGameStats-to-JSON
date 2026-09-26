@@ -37,21 +37,14 @@ def write_json(path, data):
         json.dump(data, f, indent=2, ensure_ascii=False)
 
 
-def find(folder, pattern):
-    matches = list(Path(folder).glob(pattern))
-    if not matches:
-        return None
-    return matches[0]
-
-
 def load_steam_stats(folder, userid, appid, fallback=None):
     is_fallback = False
 
     # Load schema file
     schema_file = f"UserGameStatsSchema_{appid}.bin"
-    if (schema_path := find(folder, schema_file)) is not None:
+    if (schema_path := Path(folder) / schema_file).exists():
         console.print(f"[green]✓[/green] Found Steam stats schema for appid {appid} at {schema_path}.")
-    elif fallback and (schema_path := find(fallback, schema_file)) is not None:
+    elif fallback and (schema_path := Path(fallback) / schema_file).exists():
         console.print(f"[yellow]Warning: Steam stats not found for appid {appid} and userid {userid}. Using fallback schema from {fallback}.[/yellow]")
         is_fallback = True
     else:
@@ -59,8 +52,8 @@ def load_steam_stats(folder, userid, appid, fallback=None):
     schema = read_bin(schema_path)
 
     # Load data file
-    data_path = find(folder, f"UserGameStats_{userid}_{appid}.bin")
-    data = read_bin(data_path) if data_path is not None else {"cache": {"crc": 0, "PendingChanges": 1}}
+    data_path = Path(folder) / f"UserGameStats_{userid}_{appid}.bin"
+    data = read_bin(data_path) if data_path.exists() else {"cache": {"crc": 0, "PendingChanges": 1}}
 
     return schema, data, is_fallback
 
