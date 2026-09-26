@@ -82,6 +82,18 @@ python main.py --local 2215200
 - `utils.py` — shared helpers for JSON/binary I/O and Steam schema parsing
 - `requirements.txt` — Python dependencies
 
+## Development
+
+Tests describe the expected behavior; lint and formatting are enforced by `ruff` (config in `pyproject.toml`).
+
+```bash
+python -m pytest
+ruff check .
+ruff format --check .
+```
+
+Tests never touch real Steam or emulator files, and never close Steam.
+
 ## Notes
 
 - Always close Steam before modifying Steam binary files.

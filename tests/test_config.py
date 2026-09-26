@@ -1,0 +1,76 @@
+import configparser
+import os
+from pathlib import Path
+
+import pytest
+
+from config import load_config
+
+
+def write_ini(stats, saves, emu_schema, userid="12345"):
+    Path("config.ini").write_text(
+        f"[paths]\nstats_path = {stats}\nsaves_path = {saves}\nemu_schema_path = {emu_schema}\n\n[user]\nuserid = {userid}\n",
+        encoding="utf-8",
+    )
+
+
+@pytest.fixture
+def dirs(tmp_path):
+    paths = {name: tmp_path / name for name in ("steam", "gse", "emu_schema")}
+    for p in paths.values():
+        p.mkdir()
+    return paths
+
+
+def test_missing_config_creates_template_and_exits():
+    with pytest.raises(SystemExit):
+        load_config()
+    cfg = configparser.ConfigParser(interpolation=None)
+    cfg.read("config.ini")
+    assert set(cfg["paths"]) == {"stats_path", "saves_path", "emu_schema_path"}
+    assert set(cfg["user"]) == {"userid"}
+
+
+def test_missing_config_tells_user_to_fill_it_in(capsys):
+    with pytest.raises(SystemExit):
+        load_config()
+    assert "config.ini" in capsys.readouterr().out
+
+
+def test_loads_paths_and_userid(dirs):
+    write_ini(dirs["steam"], dirs["gse"], dirs["emu_schema"])
+    assert load_config() == {
+        "stats_path": dirs["steam"],
+        "saves_path": dirs["gse"],
+        "emu_schema_path": dirs["emu_schema"],
+        "userid": 12345,
+    }
+
+
+@pytest.mark.skipif(os.name != "nt", reason="%VAR% expansion is Windows-only")
+def test_expands_windows_env_vars(dirs, monkeypatch):
+    monkeypatch.setenv("UGS_TEST_ROOT", str(dirs["gse"].parent))
+    write_ini(dirs["steam"], r"%UGS_TEST_ROOT%\gse", dirs["emu_schema"])
+    assert load_config()["saves_path"] == dirs["gse"]
+
+
+def test_local_mode_uses_project_stats_and_saves(dirs, tmp_path):
+    (tmp_path / "stats").mkdir()
+    (tmp_path / "saves").mkdir()
+    write_ini(tmp_path / "nope1", tmp_path / "nope2", dirs["emu_schema"])
+    cfg = load_config(local=True)
+    assert cfg["stats_path"] == Path("stats")
+    assert cfg["saves_path"] == Path("saves")
+
+
+def test_missing_stats_path_exits_with_error(dirs, tmp_path):
+    write_ini(tmp_path / "missing", dirs["gse"], dirs["emu_schema"])
+    with pytest.raises(SystemExit) as exc:
+        load_config()
+    assert exc.value.code == 1
+
+
+def test_emu_schema_path_is_optional(dirs, tmp_path):
+    """Only needed as a fallback when Steam has no schema for an app."""
+    write_ini(dirs["steam"], dirs["gse"], tmp_path / "missing")
+    assert load_config()["stats_path"] == dirs["steam"]

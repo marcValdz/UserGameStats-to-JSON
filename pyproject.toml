@@ -1,5 +1,10 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
 [tool.ruff]
 line-length = 180
+src = [".", "tests"]
 target-version = "py311"
 extend-exclude = ["activate"]
 
