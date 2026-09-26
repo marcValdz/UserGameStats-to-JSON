@@ -45,10 +45,10 @@ def load_steam_stats(folder, userid, appid, fallback=None):
     if (schema_path := Path(folder) / schema_file).exists():
         console.print(f"[green]✓[/green] Found Steam stats schema for appid {appid} at {schema_path}.")
     elif fallback and (schema_path := Path(fallback) / schema_file).exists():
-        console.print(f"[yellow]Warning: Steam stats not found for appid {appid} and userid {userid}. Using fallback schema from {fallback}.[/yellow]")
+        console.print(f"[yellow]Warning: Steam has no stats schema for appid {appid}. Using fallback schema from {fallback}.[/yellow]")
         is_fallback = True
     else:
-        raise FileNotFoundError(f"Steam stats not found for appid {appid} and userid {userid}, and no valid fallback schema found.")
+        raise FileNotFoundError(f"No stats schema for appid {appid} in Steam's stats folder or the fallback schema folder.")
     schema = read_bin(schema_path)
 
     # Load data file

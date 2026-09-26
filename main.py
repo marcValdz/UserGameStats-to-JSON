@@ -183,7 +183,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("appids", nargs="*", help="Explicit AppIDs")
     parser.add_argument("--from", dest="source", choices=["stats", "saves"], help="Auto-detect AppIDs")
-    parser.add_argument("--local", action="store_true", help="Use default_* paths from config")
+    parser.add_argument("--local", action="store_true", help="Use the project's stats/ and saves/ folders instead of the configured paths; Steam is not closed")
     args = parser.parse_args(argv)
 
     console.rule("[bold cyan]Steam ↔ Emu Achievement Sync[/bold cyan]")

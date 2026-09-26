@@ -26,9 +26,8 @@ def extract_achievements(schema, data):
                 # STAT-BASED ACHIEVEMENTS
                 # -------------------------
                 if is_stat_based(prog_info):
-                    operand, max_val, cache_key = ach_to_stat[name]
+                    _, max_val, cache_key = ach_to_stat[name]
                     current = cache.get(cache_key, {}).get("data", 0)
-                    max_val = int(prog_info.get("max_val"))
 
                     # Check timestamp first, fall back to progress comparison
                     t = times.get(i)
@@ -36,14 +35,11 @@ def extract_achievements(schema, data):
                         obj["earned"] = True
                         obj["earned_time"] = int(t)
                     else:
-                        obj["earned"] = max_val is not None and current >= max_val
+                        obj["earned"] = current >= max_val
                         obj["earned_time"] = 0
 
-                    if max_val is not None:
-                        obj["max_progress"] = int(max_val)
-                        obj["progress"] = min(int(current), int(max_val))  # cap at max
-                    else:
-                        obj["progress"] = int(current)
+                    obj["max_progress"] = max_val
+                    obj["progress"] = min(int(current), max_val)  # cap at max
 
                 # -------------------------
                 # NORMAL ACHIEVEMENTS
