@@ -120,7 +120,7 @@ def apply_achievements(merged, schema, data):
     return data
 
 
-if __name__ == "__main__":
+def main():
     try:
         cfg = load_config()
     except SystemExit:
@@ -152,3 +152,7 @@ if __name__ == "__main__":
 
     write_json("merged_achievements.json", merged)
     write_bin(f"UserGameStats_{userid}_{appid}.bin", steam_bin)
+
+
+if __name__ == "__main__":
+    main()

@@ -94,14 +94,14 @@ def get_appids(source, stats_path, saves_path):
     return []
 
 
-if __name__ == "__main__":
+def main(argv=None):
     ensure_steam_closed()
 
     parser = argparse.ArgumentParser()
     parser.add_argument("appids", nargs="*", help="Explicit AppIDs")
     parser.add_argument("--from", dest="source", choices=["stats", "saves"], help="Auto-detect AppIDs")
     parser.add_argument("--local", action="store_true", help="Use default_* paths from config")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     console.rule("[bold cyan]Steam ↔ Emu Achievement Sync[/bold cyan]")
 
@@ -176,3 +176,7 @@ if __name__ == "__main__":
         console.print(f"\n[bold]Final Count:[/bold] {earned_total}/{len(merged_ach)} unlocked")
         console.rule("[dim]Done[/dim]")
     console.save_text("session.log")
+
+
+if __name__ == "__main__":
+    main()

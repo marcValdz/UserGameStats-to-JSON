@@ -59,7 +59,7 @@ def extract_achievements(schema, data):
     return dict(sorted(out.items(), key=lambda x: nat_key(x[0])))
 
 
-if __name__ == "__main__":
+def main():
     try:
         cfg = load_config()
     except SystemExit:
@@ -78,3 +78,7 @@ if __name__ == "__main__":
     except Exception as e:
         console.print(f"[red]Error loading Steam stats for AppID {appid}: {e}. Exiting.[/red]")
         SystemExit(1)
+
+
+if __name__ == "__main__":
+    main()
