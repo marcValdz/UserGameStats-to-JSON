@@ -253,6 +253,36 @@ def test_batch_ends_with_summary_of_every_appid(cfg, capsys):
     assert APPID in summary and "updated" in summary
 
 
+# --- dry run -----------------------------------------------------------------
+
+
+def test_dry_run_shows_changes_but_writes_nothing(cfg, capsys, process_calls):
+    install_steam(cfg, make_data())
+    install_emu(cfg, {"ACH_PLAIN": {"earned": True, "earned_time": 1700000000}})
+    originals = {p: p.read_bytes() for p in (steam_bin(cfg), emu_json(cfg))}
+
+    app.main(["--dry-run", APPID])
+
+    for path, before in originals.items():
+        assert path.read_bytes() == before
+        assert backups(path) == []
+    assert not killed_steam(process_calls)
+    out = capsys.readouterr().out
+    assert "ACH_PLAIN" in out
+    assert "dry run" in out.lower()
+
+
+def test_dry_run_does_not_create_missing_files(cfg):
+    fallback = cfg["emu_schema_path"] / APPID
+    fallback.mkdir()
+    write_bin(fallback / f"UserGameStatsSchema_{APPID}.bin", make_schema())
+    install_emu(cfg, {"ACH_PLAIN": {"earned": True, "earned_time": 1700000000}})
+
+    app.main(["--dry-run", APPID])
+
+    assert list(cfg["stats_path"].iterdir()) == []
+
+
 # --- CLI ---------------------------------------------------------------------
 
 

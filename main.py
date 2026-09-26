@@ -95,6 +95,10 @@ def write_if_changed(path: Path, data, read, write):
     return True
 
 
+def needs_write(path: Path, data, read):
+    return not path.exists() or read(path) != data
+
+
 def print_summary(results):
     table = Table(title="Summary", header_style="bold cyan")
     table.add_column("AppID")
@@ -138,7 +142,7 @@ def get_appids(source, stats_path, saves_path):
     return []
 
 
-def sync_app(appid, cfg):
+def sync_app(appid, cfg, dry_run=False):
     userid = cfg["userid"]
     stats_path = cfg["stats_path"]
     saves_path = cfg["saves_path"]
@@ -182,19 +186,24 @@ def sync_app(appid, cfg):
 
     # --- 3. BACKUPS & FILE WRITING ---
     # Each file is left alone if unchanged, otherwise backed up before being replaced.
-    with Status("[cyan]Securing backups and writing files...[/cyan]", console=console):
-        if is_fallback:
-            schema_bin = read_bin(emu_schema_path / f"UserGameStatsSchema_{appid}.bin")
-            write_if_changed(steam_schema_path, schema_bin, read_bin, write_bin)
-        bin_written = write_if_changed(steam_bin_path, steam_bin, read_bin, write_bin)
-        json_written = write_if_changed(emu_ach_path, merged_ach, read_json, write_json)
+    if dry_run:
+        bin_written = needs_write(steam_bin_path, steam_bin, read_bin)
+        json_written = needs_write(emu_ach_path, merged_ach, read_json)
+    else:
+        with Status("[cyan]Securing backups and writing files...[/cyan]", console=console):
+            if is_fallback:
+                schema_bin = read_bin(emu_schema_path / f"UserGameStatsSchema_{appid}.bin")
+                write_if_changed(steam_schema_path, schema_bin, read_bin, write_bin)
+            bin_written = write_if_changed(steam_bin_path, steam_bin, read_bin, write_bin)
+            json_written = write_if_changed(emu_ach_path, merged_ach, read_json, write_json)
 
+    verb = "would update" if dry_run else "updated"
     if bin_written:
-        console.print(f"[green]✓[/green] Bin updated: [dim]{steam_bin_path}[/dim]")
+        console.print(f"[green]✓[/green] Bin {verb}: [dim]{steam_bin_path}[/dim]")
     else:
         console.print(f"[dim]Bin unchanged: {steam_bin_path}[/dim]")
     if json_written:
-        console.print(f"[green]✓[/green] Emu json updated: [dim]{emu_ach_path}[/dim]")
+        console.print(f"[green]✓[/green] Emu json {verb}: [dim]{emu_ach_path}[/dim]")
     else:
         console.print(f"[dim]Emu json unchanged: {emu_ach_path}[/dim]")
 
@@ -207,7 +216,7 @@ def sync_app(appid, cfg):
         "emu_changes": len(emu_changes),
         "earned": earned_total,
         "total": len(merged_ach),
-        "result": "updated" if bin_written or json_written else "up to date",
+        "result": verb if bin_written or json_written else "up to date",
     }
 
 
@@ -216,9 +225,12 @@ def main(argv=None):
     parser.add_argument("appids", nargs="*", help="Explicit AppIDs")
     parser.add_argument("--from", dest="source", choices=["stats", "saves"], help="Auto-detect AppIDs")
     parser.add_argument("--local", action="store_true", help="Use the project's stats/ and saves/ folders instead of the configured paths; Steam is not closed")
+    parser.add_argument("--dry-run", action="store_true", help="Show what would change without writing anything; Steam is not closed")
     args = parser.parse_args(argv)
 
     console.rule("[bold cyan]Steam ↔ Emu Achievement Sync[/bold cyan]")
+    if args.dry_run:
+        console.print("[yellow]Dry run:[/yellow] nothing will be written.")
 
     cfg = load_config(local=args.local)
 
@@ -233,13 +245,13 @@ def main(argv=None):
         parser.error("Provide AppIDs or use --from stats|saves")
 
     # Steam flushes its in-memory stats cache on exit, which would undo the sync
-    if not args.local:
+    if not args.local and not args.dry_run:
         ensure_steam_closed()
 
     results = {}
     for appid in appids:
         try:
-            results[appid] = sync_app(appid, cfg)
+            results[appid] = sync_app(appid, cfg, dry_run=args.dry_run)
         except Exception as e:
             results[appid] = None
             console.print(f"[red]✗ AppID {appid} failed:[/red] {e}")

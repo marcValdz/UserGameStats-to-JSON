@@ -66,6 +66,7 @@ python main.py --local <appid>
 | `--from stats` | Sync every app with a `UserGameStatsSchema_<appid>.bin` in `stats_path`. |
 | `--from saves` | Sync every numeric folder in `saves_path`. |
 | `--local` | Use the `stats/` and `saves/` folders in the project folder instead of the configured paths, e.g. to try a sync on copies. Steam is not closed. |
+| `--dry-run` | Show what would change on each side without writing anything, including backups. Steam is not closed. |
 
 - On Windows, Steam is force-closed right before syncing, once the arguments and `config.ini` have been checked. `--help` and invalid arguments never close it.
 - Each AppID is synced on its own. If one fails (for example, no schema anywhere), the error is shown and the others still sync.
