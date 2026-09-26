@@ -147,6 +147,17 @@ def test_steam_ahead_is_not_reported_as_up_to_date(cfg, capsys):
     assert "up to date" not in capsys.readouterr().out
 
 
+def test_unlock_time_only_change_is_not_reported_as_up_to_date(cfg, capsys):
+    """Both sides earned it, the emu save recorded it earlier: Steam's time changes."""
+    install_steam(cfg, make_data(earned={"0": 1700000500}))
+    install_emu(cfg, extract_achievements(make_schema(), make_data(earned={"0": 1700000000})))
+
+    app.main([APPID])
+
+    assert "up to date" not in capsys.readouterr().out
+    assert steam_achievements(cfg)["ACH_PLAIN"]["earned_time"] == 1700000000
+
+
 def test_fallback_schema_builds_steam_files_from_emu(cfg):
     fallback = cfg["emu_schema_path"] / APPID
     fallback.mkdir()
@@ -260,6 +271,12 @@ def test_diff_reports_earned_and_progress_changes():
     steam = {"A": {"earned": False}, "B": {"earned": False, "progress": 1}, "C": {"earned": True}}
     merged = {"A": {"earned": True}, "B": {"earned": False, "progress": 2}, "C": {"earned": True}}
     assert [name for name, _, _ in app.diff_achievements(steam, merged)] == ["A", "B"]
+
+
+def test_diff_reports_unlock_time_changes():
+    steam = {"A": {"earned": True, "earned_time": 1700000500}, "B": {"earned": True, "earned_time": 1700000000}}
+    merged = {"A": {"earned": True, "earned_time": 1700000000}, "B": {"earned": True, "earned_time": 1700000000}}
+    assert [name for name, _, _ in app.diff_achievements(steam, merged)] == ["A"]
 
 
 def test_print_diff_table_reports_whether_there_were_changes():

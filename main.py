@@ -21,9 +21,14 @@ def diff_achievements(steam, merged_ach):
         old = steam.get(name, {})
         earned_changed = old.get("earned") != new.get("earned")
         progress_changed = old.get("progress") != new.get("progress")
-        if earned_changed or progress_changed:
+        time_changed = bool(new.get("earned")) and old.get("earned_time") != new.get("earned_time")
+        if earned_changed or progress_changed or time_changed:
             changes.append((name, old, new))
     return changes
+
+
+def format_time(timestamp):
+    return datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M")
 
 
 def print_diff_table(changes, title="Achievement Changes"):
@@ -34,6 +39,7 @@ def print_diff_table(changes, title="Achievement Changes"):
     table.add_column("Achievement", style="bold")
     table.add_column("Earned", justify="center")
     table.add_column("Progress", justify="right")
+    table.add_column("Unlocked", justify="right")
 
     for name, old, new in sorted(changes):
         earned_old = old.get("earned", False)
@@ -52,7 +58,14 @@ def print_diff_table(changes, title="Achievement Changes"):
         else:
             progress_str = ""
 
-        table.add_row(name, earned_str, progress_str)
+        time_old = old.get("earned_time") or 0
+        time_new = new.get("earned_time") or 0
+        if time_new and time_old and time_old != time_new:
+            time_str = f"{format_time(time_old)} → [cyan]{format_time(time_new)}[/cyan]"
+        else:
+            time_str = format_time(time_new) if time_new else ""
+
+        table.add_row(name, earned_str, progress_str, time_str)
 
     console.print()
     console.print(table)
