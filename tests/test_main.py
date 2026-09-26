@@ -194,6 +194,16 @@ def test_emu_complete_steam_partial_with_sparse_groups(cfg):
     assert emu_path.read_bytes() == emu_before
 
 
+def test_sync_works_without_fallback_schema_folder(cfg):
+    cfg["emu_schema_path"] = None
+    install_steam(cfg, make_data())
+    install_emu(cfg, {"ACH_PLAIN": {"earned": True, "earned_time": 1700000000}})
+
+    app.main([APPID])
+
+    assert steam_achievements(cfg)["ACH_PLAIN"] == {"earned": True, "earned_time": 1700000000}
+
+
 def test_run_writes_session_log(cfg):
     install_steam(cfg, make_data())
     app.main([APPID])

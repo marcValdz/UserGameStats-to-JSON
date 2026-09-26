@@ -4,14 +4,15 @@ from pathlib import Path
 
 import pytest
 
+import config
 from config import load_config
 
 
 def write_ini(stats, saves, emu_schema, userid="12345"):
-    Path("config.ini").write_text(
-        f"[paths]\nstats_path = {stats}\nsaves_path = {saves}\nemu_schema_path = {emu_schema}\n\n[user]\nuserid = {userid}\n",
-        encoding="utf-8",
-    )
+    """A value of None leaves that key out of config.ini."""
+    paths = {"stats_path": stats, "saves_path": saves, "emu_schema_path": emu_schema}
+    lines = "".join(f"{key} = {value}\n" for key, value in paths.items() if value is not None)
+    Path("config.ini").write_text(f"[paths]\n{lines}\n[user]\nuserid = {userid}\n", encoding="utf-8")
 
 
 @pytest.fixture
@@ -106,3 +107,75 @@ def test_emu_schema_path_is_optional(dirs, tmp_path):
     """Only needed as a fallback when Steam has no schema for an app."""
     write_ini(dirs["steam"], dirs["gse"], tmp_path / "missing")
     assert load_config()["stats_path"] == dirs["steam"]
+
+
+# --- path detection ----------------------------------------------------------
+
+
+@pytest.fixture
+def steam_install(tmp_path, monkeypatch):
+    root = tmp_path / "Steam"
+    (root / "appcache" / "stats").mkdir(parents=True)
+    monkeypatch.setattr(config, "_steam_install_path", lambda: root)
+    return root
+
+
+@pytest.fixture
+def gse_saves(monkeypatch):
+    saves = Path(os.environ["APPDATA"]) / "GSE Saves"
+    saves.mkdir()
+    return saves
+
+
+def test_empty_paths_are_detected(steam_install, gse_saves, capsys):
+    write_ini("", "", "")
+    cfg = load_config()
+    assert cfg["stats_path"] == steam_install / "appcache" / "stats"
+    assert cfg["saves_path"] == gse_saves
+    out = capsys.readouterr().out
+    assert "stats_path" in out and "saves_path" in out
+
+
+def test_missing_path_keys_are_detected(steam_install, gse_saves):
+    write_ini(None, None, None)
+    cfg = load_config()
+    assert cfg["stats_path"] == steam_install / "appcache" / "stats"
+    assert cfg["saves_path"] == gse_saves
+
+
+def test_set_paths_win_over_detection(dirs, steam_install, gse_saves):
+    write_ini(dirs["steam"], dirs["gse"], dirs["emu_schema"])
+    cfg = load_config()
+    assert (cfg["stats_path"], cfg["saves_path"]) == (dirs["steam"], dirs["gse"])
+
+
+@pytest.mark.parametrize("key", ["stats_path", "saves_path"])
+def test_undetectable_path_exits_with_message(dirs, steam_install, gse_saves, key, capsys, monkeypatch):
+    """No Steam install in the registry, or no GSE Saves in %APPDATA%."""
+    if key == "stats_path":
+        monkeypatch.setattr(config, "_steam_install_path", lambda: None)
+    else:
+        gse_saves.rmdir()
+    write_ini("", "", "")
+    with pytest.raises(SystemExit) as exc:
+        load_config()
+    assert exc.value.code == 1
+    assert key in capsys.readouterr().out
+
+
+def test_empty_emu_schema_path_means_no_fallback(dirs):
+    write_ini(dirs["steam"], dirs["gse"], "")
+    assert load_config()["emu_schema_path"] is None
+
+
+def test_template_leaves_paths_empty_for_detection(steam_install, gse_saves):
+    with pytest.raises(SystemExit):
+        load_config()
+    cfg = configparser.ConfigParser(interpolation=None)
+    cfg.read("config.ini")
+    assert all(value == "" for value in cfg["paths"].values())
+
+    cfg["user"]["userid"] = "12345"
+    with open("config.ini", "w") as f:
+        cfg.write(f)
+    assert load_config()["stats_path"] == steam_install / "appcache" / "stats"

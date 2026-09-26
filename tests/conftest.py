@@ -10,6 +10,15 @@ def isolate_cwd(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def no_real_install_paths(tmp_path_factory, monkeypatch):
+    """Never let path detection find the real Steam or GSE Saves folders."""
+    import config
+
+    monkeypatch.setattr(config, "_steam_install_path", lambda: None)
+    monkeypatch.setenv("APPDATA", str(tmp_path_factory.mktemp("appdata")))
+
+
+@pytest.fixture(autouse=True)
 def process_calls(monkeypatch):
     """Never let a test kill the real Steam. Records every subprocess.run call."""
     calls = []

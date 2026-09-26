@@ -28,22 +28,24 @@ python -m pip install -r requirements.txt
 
 ## Setup
 
-Run the tool once from the project folder. It creates `config.ini` and exits; fill it in and run it again.
+Run the tool once from the project folder. It creates `config.ini` and exits; set `userid` and run it again.
 
 ```ini
 [paths]
-stats_path = C:\Program Files (x86)\Steam\appcache\stats
-saves_path = %APPDATA%\GSE Saves
-emu_schema_path = C:\path\to\generate_emu_config\backup
+stats_path =
+saves_path =
+emu_schema_path =
 
 [user]
 userid = 000000000
 ```
 
+Paths left empty are detected: `stats_path` from Steam's install folder in the registry (`<Steam>\appcache\stats`), `saves_path` as `%APPDATA%\GSE Saves`. The tool prints the paths it detected. A path you set is always used as written, so you can point either one somewhere else, such as a copy.
+
 | Key | Meaning |
 |---|---|
-| `stats_path` | Steam's stats cache folder. Must exist. |
-| `saves_path` | Emulator saves folder, containing one folder per AppID. Must exist. |
+| `stats_path` | Steam's stats cache folder. Detected when empty; must exist when set. |
+| `saves_path` | Emulator saves folder, containing one folder per AppID. Detected when empty; must exist when set. |
 | `emu_schema_path` | Optional. Folder with `<appid>/UserGameStatsSchema_<appid>.bin` files (e.g. from generate_emu_config), used only for apps Steam has no schema for. |
 | `userid` | Your Steam32 account ID, the number in `UserGameStats_<userid>_<appid>.bin`. The tool refuses to run with the template's `0`, and warns if `stats_path` has no files for this ID. |
 

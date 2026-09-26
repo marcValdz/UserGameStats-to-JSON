@@ -149,7 +149,7 @@ def sync_app(appid, cfg, dry_run=False):
 
     # --- 1. SETUP PATHS ---
     emu_ach_path = saves_path / appid / "achievements.json"
-    emu_schema_path = cfg["emu_schema_path"] / appid
+    emu_schema_path = cfg["emu_schema_path"] / appid if cfg["emu_schema_path"] else None
 
     steam_bin_path = stats_path / f"UserGameStats_{userid}_{appid}.bin"
     steam_schema_path = stats_path / f"UserGameStatsSchema_{appid}.bin"
