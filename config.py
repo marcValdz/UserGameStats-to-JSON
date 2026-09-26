@@ -18,7 +18,8 @@ def check_path(path: Path, name: str) -> Path:
 
 def load_config(local=False):
     if not CONFIG_PATH.exists():
-        default = configparser.ConfigParser()
+        # Values like %APPDATA% are expanded by os.path.expandvars, not configparser
+        default = configparser.ConfigParser(interpolation=None)
 
         default["paths"] = {
             "stats_path": r"C:\Program Files (x86)\Steam\appcache\stats",
@@ -33,7 +34,8 @@ def load_config(local=False):
         with open(CONFIG_PATH, "w") as f:
             default.write(f)
 
-        raise SystemExit
+        console.print(f"[yellow]Created {CONFIG_PATH}.[/yellow] Fill in your paths and Steam user ID, then run again.")
+        raise SystemExit(1)
 
     cfg = configparser.ConfigParser(interpolation=None)
     cfg.read(CONFIG_PATH)
