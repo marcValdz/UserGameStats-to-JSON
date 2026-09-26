@@ -1,4 +1,2 @@
-pytest
-ruff
-vdf
-rich
+rich==15.0.0
+vdf==3.4
