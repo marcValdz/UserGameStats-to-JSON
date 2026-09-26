@@ -45,7 +45,7 @@ userid = 000000000
 | `stats_path` | Steam's stats cache folder. Must exist. |
 | `saves_path` | Emulator saves folder, containing one folder per AppID. Must exist. |
 | `emu_schema_path` | Optional. Folder with `<appid>/UserGameStatsSchema_<appid>.bin` files (e.g. from generate_emu_config), used only for apps Steam has no schema for. |
-| `userid` | Your Steam32 account ID, the number in `UserGameStats_<userid>_<appid>.bin`. |
+| `userid` | Your Steam32 account ID, the number in `UserGameStats_<userid>_<appid>.bin`. The tool refuses to run with the template's `0`, and warns if `stats_path` has no files for this ID. |
 
 Environment variables such as `%APPDATA%` are expanded. Don't put comments on the same line as a value; `configparser` would read them as part of the value.
 

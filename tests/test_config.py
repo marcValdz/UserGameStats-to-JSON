@@ -47,6 +47,38 @@ def test_loads_paths_and_userid(dirs):
     }
 
 
+def test_unset_userid_is_rejected(dirs, capsys):
+    """The generated template has userid = 0; syncing with it would create UserGameStats_0_* files in Steam's folder."""
+    write_ini(dirs["steam"], dirs["gse"], dirs["emu_schema"], userid="0")
+    with pytest.raises(SystemExit) as exc:
+        load_config()
+    assert exc.value.code == 1
+    assert "userid" in capsys.readouterr().out
+
+
+def test_userid_with_inline_comment_is_rejected_with_message(dirs, capsys):
+    """Earlier READMEs showed `userid = 000000000 # Steam32 ID`; configparser keeps the comment."""
+    write_ini(dirs["steam"], dirs["gse"], dirs["emu_schema"], userid="12345 # Steam32 ID")
+    with pytest.raises(SystemExit) as exc:
+        load_config()
+    assert exc.value.code == 1
+    assert "userid" in capsys.readouterr().out
+
+
+def test_warns_when_steam_has_no_stats_for_userid(dirs, capsys):
+    (dirs["steam"] / "UserGameStats_99999_100.bin").touch()
+    write_ini(dirs["steam"], dirs["gse"], dirs["emu_schema"], userid="12345")
+    assert load_config()["userid"] == 12345
+    assert "12345" in capsys.readouterr().out
+
+
+def test_no_warning_when_steam_has_stats_for_userid(dirs, capsys):
+    (dirs["steam"] / "UserGameStats_12345_100.bin").touch()
+    write_ini(dirs["steam"], dirs["gse"], dirs["emu_schema"], userid="12345")
+    load_config()
+    assert capsys.readouterr().out == ""
+
+
 @pytest.mark.skipif(os.name != "nt", reason="%VAR% expansion is Windows-only")
 def test_expands_windows_env_vars(dirs, monkeypatch):
     monkeypatch.setenv("UGS_TEST_ROOT", str(dirs["gse"].parent))
