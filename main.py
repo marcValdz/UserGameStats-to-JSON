@@ -95,6 +95,25 @@ def write_if_changed(path: Path, data, read, write):
     return True
 
 
+def print_summary(results):
+    table = Table(title="Summary", header_style="bold cyan")
+    table.add_column("AppID")
+    table.add_column("Steam ← Emu", justify="right")
+    table.add_column("Emu ← Steam", justify="right")
+    table.add_column("Unlocked", justify="right")
+    table.add_column("Result")
+
+    for appid, r in results.items():
+        if r is None:
+            table.add_row(appid, "", "", "", "[red]failed[/red]")
+            continue
+        color = "dim" if r["result"] == "up to date" else "green"
+        table.add_row(appid, str(r["steam_changes"] or ""), str(r["emu_changes"] or ""), f"{r['earned']}/{r['total']}", f"[{color}]{r['result']}[/{color}]")
+
+    console.print()
+    console.print(table)
+
+
 def ensure_steam_closed():
     if os.name != "nt":
         return
@@ -183,6 +202,14 @@ def sync_app(appid, cfg):
     console.print(f"\n[bold]Final Count:[/bold] {earned_total}/{len(merged_ach)} unlocked")
     console.rule("[dim]Done[/dim]")
 
+    return {
+        "steam_changes": len(steam_changes),
+        "emu_changes": len(emu_changes),
+        "earned": earned_total,
+        "total": len(merged_ach),
+        "result": "updated" if bin_written or json_written else "up to date",
+    }
+
 
 def main(argv=None):
     parser = argparse.ArgumentParser()
@@ -209,15 +236,18 @@ def main(argv=None):
     if not args.local:
         ensure_steam_closed()
 
-    failed = []
+    results = {}
     for appid in appids:
         try:
-            sync_app(appid, cfg)
+            results[appid] = sync_app(appid, cfg)
         except Exception as e:
-            failed.append(appid)
+            results[appid] = None
             console.print(f"[red]✗ AppID {appid} failed:[/red] {e}")
             console.rule("[dim]Skipped[/dim]")
 
+    if len(results) > 1:
+        print_summary(results)
+    failed = [appid for appid, r in results.items() if r is None]
     if failed:
         console.print(f"\n[red]{len(failed)} of {len(appids)} AppIDs failed:[/red] {', '.join(failed)}")
     console.save_text("session.log")

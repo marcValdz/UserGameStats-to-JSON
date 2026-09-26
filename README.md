@@ -70,6 +70,7 @@ python main.py --local <appid>
 - On Windows, Steam is force-closed right before syncing, once the arguments and `config.ini` have been checked. `--help` and invalid arguments never close it.
 - Each AppID is synced on its own. If one fails (for example, no schema anywhere), the error is shown and the others still sync.
 - For each app the tool prints what changes on each side (`Steam ← Emu`, `Emu ← Steam`), listed by the achievements' display names and including unlock times moved to an earlier date, and the final unlock count.
+- When more than one AppID is synced, a summary table at the end shows each app's changes per side, unlock count and result (updated, up to date or failed).
 - The console output of every run is saved to `session.log`, replacing the previous one.
 
 ### Backups

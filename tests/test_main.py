@@ -239,6 +239,20 @@ def test_changes_fall_back_to_api_name_without_display_name(cfg, capsys):
     assert "ACH_PLAIN" in capsys.readouterr().out
 
 
+def test_batch_ends_with_summary_of_every_appid(cfg, capsys):
+    install_steam(cfg, make_data())
+    install_emu(cfg, {"ACH_PLAIN": {"earned": True, "earned_time": 1700000000}})
+
+    with pytest.raises(SystemExit):
+        app.main(["999", APPID])
+
+    out = capsys.readouterr().out
+    assert "Summary" in out
+    summary = out.split("Summary")[-1]
+    assert "999" in summary and "failed" in summary
+    assert APPID in summary and "updated" in summary
+
+
 # --- CLI ---------------------------------------------------------------------
 
 
