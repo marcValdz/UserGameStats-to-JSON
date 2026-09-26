@@ -98,10 +98,72 @@ def get_appids(source, stats_path, saves_path):
         console.print(f"[green]✓[/green] Auto-detected {len(appids)} AppIDs from Steam folder")
         return appids
     elif source == "saves":
-        appids = [d.name for d in saves_path.iterdir() if d.is_dir()]
+        appids = [d.name for d in saves_path.iterdir() if d.is_dir() and d.name.isdigit()]
         console.print(f"[green]✓[/green] Auto-detected {len(appids)} AppIDs from Emu folder")
         return appids
     return []
+
+
+def sync_app(appid, cfg):
+    userid = cfg["userid"]
+    stats_path = cfg["stats_path"]
+    saves_path = cfg["saves_path"]
+
+    # --- 1. SETUP PATHS ---
+    emu_ach_path = saves_path / appid / "achievements.json"
+    emu_schema_path = cfg["emu_schema_path"] / appid
+
+    steam_bin_path = stats_path / f"UserGameStats_{userid}_{appid}.bin"
+    steam_schema_path = stats_path / f"UserGameStatsSchema_{appid}.bin"
+
+    # --- 2. DATA LOADING & PROCESSING ---
+    with Status(f"[cyan]Processing AppID {appid}...[/cyan]", console=console):
+        schema, data, is_fallback = load_steam_stats(stats_path, userid, appid, emu_schema_path)
+        steam_ach = extract_achievements(schema, data)
+
+        try:
+            emu_ach = read_json(emu_ach_path)
+            merged_ach = merge_achievements(base=steam_ach, patch=emu_ach, schema=schema)
+        except FileNotFoundError:
+            emu_ach = None
+            merged_ach = steam_ach
+
+        steam_bin = apply_achievements(merged_ach, schema, data)
+
+    console.print(f"[green]✓[/green] Steam data loaded ({len(steam_ach)} achievements found)")
+    if is_fallback:
+        console.print("[yellow]⚠[/yellow] Local Steam data missing. Generating fresh Steam .bin using your emulator history")
+    elif emu_ach is not None:
+        console.print(f"[green]✓[/green] Emu achievements merged from [dim]{emu_ach_path}[/dim]")
+    else:
+        console.print("[yellow]⚠[/yellow] No emu data found - building `achievements.json` file from Steam data")
+
+    steam_changed = print_diff_table(diff_achievements(steam_ach, merged_ach), "Steam ← Emu")
+    emu_changed = emu_ach is not None and print_diff_table(diff_achievements(emu_ach, merged_ach), "Emu ← Steam")
+    if not steam_changed and not emu_changed:
+        console.print("\n[dim]No new achievements to sync (everything is up to date).[/dim]")
+
+    # --- 3. BACKUPS & FILE WRITING ---
+    # Each file is left alone if unchanged, otherwise backed up before being replaced.
+    with Status("[cyan]Securing backups and writing files...[/cyan]", console=console):
+        if is_fallback:
+            schema_bin = read_bin(emu_schema_path / f"UserGameStatsSchema_{appid}.bin")
+            write_if_changed(steam_schema_path, schema_bin, read_bin, write_bin)
+        bin_written = write_if_changed(steam_bin_path, steam_bin, read_bin, write_bin)
+        json_written = write_if_changed(emu_ach_path, merged_ach, read_json, write_json)
+
+    if bin_written:
+        console.print(f"[green]✓[/green] Bin updated: [dim]{steam_bin_path}[/dim]")
+    else:
+        console.print(f"[dim]Bin unchanged: {steam_bin_path}[/dim]")
+    if json_written:
+        console.print(f"[green]✓[/green] Emu json updated: [dim]{emu_ach_path}[/dim]")
+    else:
+        console.print(f"[dim]Emu json unchanged: {emu_ach_path}[/dim]")
+
+    earned_total = sum(1 for a in merged_ach.values() if a.get("earned"))
+    console.print(f"\n[bold]Final Count:[/bold] {earned_total}/{len(merged_ach)} unlocked")
+    console.rule("[dim]Done[/dim]")
 
 
 def main(argv=None):
@@ -117,7 +179,6 @@ def main(argv=None):
 
     cfg = load_config(local=args.local)
 
-    userid = cfg["userid"]
     stats_path = cfg["stats_path"]
     saves_path = cfg["saves_path"]
 
@@ -128,63 +189,20 @@ def main(argv=None):
     else:
         parser.error("Provide AppIDs or use --from stats|saves")
 
+    failed = []
     for appid in appids:
-        # --- 1. SETUP PATHS ---
-        emu_ach_path = saves_path / appid / "achievements.json"
-        emu_schema_path = cfg["emu_schema_path"] / appid
+        try:
+            sync_app(appid, cfg)
+        except Exception as e:
+            failed.append(appid)
+            console.print(f"[red]✗ AppID {appid} failed:[/red] {e}")
+            console.rule("[dim]Skipped[/dim]")
 
-        steam_bin_path = stats_path / f"UserGameStats_{userid}_{appid}.bin"
-        steam_schema_path = stats_path / f"UserGameStatsSchema_{appid}.bin"
-
-        # --- 2. DATA LOADING & PROCESSING ---
-        with Status(f"[cyan]Processing AppID {appid}...[/cyan]", console=console):
-            schema, data, is_fallback = load_steam_stats(stats_path, userid, appid, emu_schema_path)
-            steam_ach = extract_achievements(schema, data)
-
-            try:
-                emu_ach = read_json(emu_ach_path)
-                merged_ach = merge_achievements(base=steam_ach, patch=emu_ach, schema=schema)
-            except FileNotFoundError:
-                emu_ach = None
-                merged_ach = steam_ach
-
-            steam_bin = apply_achievements(merged_ach, schema, data)
-
-        console.print(f"[green]✓[/green] Steam data loaded ({len(steam_ach)} achievements found)")
-        if is_fallback:
-            console.print("[yellow]⚠[/yellow] Local Steam data missing. Generating fresh Steam .bin using your emulator history")
-        elif emu_ach is not None:
-            console.print(f"[green]✓[/green] Emu achievements merged from [dim]{emu_ach_path}[/dim]")
-        else:
-            console.print("[yellow]⚠[/yellow] No emu data found - building `achievements.json` file from Steam data")
-
-        steam_changed = print_diff_table(diff_achievements(steam_ach, merged_ach), "Steam ← Emu")
-        emu_changed = emu_ach is not None and print_diff_table(diff_achievements(emu_ach, merged_ach), "Emu ← Steam")
-        if not steam_changed and not emu_changed:
-            console.print("\n[dim]No new achievements to sync (everything is up to date).[/dim]")
-
-        # --- 3. BACKUPS & FILE WRITING ---
-        # Each file is left alone if unchanged, otherwise backed up before being replaced.
-        with Status("[cyan]Securing backups and writing files...[/cyan]", console=console):
-            if is_fallback:
-                schema_bin = read_bin(emu_schema_path / f"UserGameStatsSchema_{appid}.bin")
-                write_if_changed(steam_schema_path, schema_bin, read_bin, write_bin)
-            bin_written = write_if_changed(steam_bin_path, steam_bin, read_bin, write_bin)
-            json_written = write_if_changed(emu_ach_path, merged_ach, read_json, write_json)
-
-        if bin_written:
-            console.print(f"[green]✓[/green] Bin updated: [dim]{steam_bin_path}[/dim]")
-        else:
-            console.print(f"[dim]Bin unchanged: {steam_bin_path}[/dim]")
-        if json_written:
-            console.print(f"[green]✓[/green] Emu json updated: [dim]{emu_ach_path}[/dim]")
-        else:
-            console.print(f"[dim]Emu json unchanged: {emu_ach_path}[/dim]")
-
-        earned_total = sum(1 for a in merged_ach.values() if a.get("earned"))
-        console.print(f"\n[bold]Final Count:[/bold] {earned_total}/{len(merged_ach)} unlocked")
-        console.rule("[dim]Done[/dim]")
+    if failed:
+        console.print(f"\n[red]{len(failed)} of {len(appids)} AppIDs failed:[/red] {', '.join(failed)}")
     console.save_text("session.log")
+    if failed:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
