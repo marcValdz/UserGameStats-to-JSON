@@ -202,6 +202,13 @@ def test_bad_arguments_do_not_close_steam(cfg, process_calls):
     assert not killed_steam(process_calls)
 
 
+def test_local_run_does_not_close_steam(cfg, process_calls):
+    """--local works on the project's stats/ and saves/ copies, not Steam's files."""
+    install_steam(cfg, make_data())
+    app.main(["--local", APPID])
+    assert not killed_steam(process_calls)
+
+
 @pytest.mark.skipif(os.name != "nt", reason="Steam is only closed on Windows")
 def test_sync_closes_steam(cfg, process_calls):
     install_steam(cfg, make_data())

@@ -167,8 +167,6 @@ def sync_app(appid, cfg):
 
 
 def main(argv=None):
-    ensure_steam_closed()
-
     parser = argparse.ArgumentParser()
     parser.add_argument("appids", nargs="*", help="Explicit AppIDs")
     parser.add_argument("--from", dest="source", choices=["stats", "saves"], help="Auto-detect AppIDs")
@@ -188,6 +186,10 @@ def main(argv=None):
         appids = get_appids(args.source, stats_path, saves_path)
     else:
         parser.error("Provide AppIDs or use --from stats|saves")
+
+    # Steam flushes its in-memory stats cache on exit, which would undo the sync
+    if not args.local:
+        ensure_steam_closed()
 
     failed = []
     for appid in appids:
