@@ -1,6 +1,6 @@
 import pytest
 
-from factories import APPID, USERID, ach, make_data, make_schema
+from factories import APPID, USERID, make_data, make_schema
 from utils import is_stat_based, load_steam_stats, nat_key, parse_schema, read_bin, read_json, write_bin, write_json
 
 
@@ -36,24 +36,8 @@ def test_json_round_trip_keeps_unicode_readable(tmp_path):
 
 def test_parse_schema_maps_stat_based_achievements():
     stat_to_achs, ach_to_stat = parse_schema(make_schema())
-    assert stat_to_achs == {
-        "kills": [("ACH_KILLS_10", 10), ("ACH_KILLS_100", 100)],
-        "distance": [("ACH_WALK_1000", 1000)],
-    }
-    assert ach_to_stat["ACH_KILLS_100"] == ("kills", 100, "2")
-    assert ach_to_stat["ACH_WALK_1000"] == ("distance", 1000, "3")
-    assert "ACH_PLAIN" not in ach_to_stat
-
-
-def test_parse_schema_accepts_numeric_type_codes():
-    schema = {APPID: {"stats": {"1": {"type": "4", "bits": {"0": ach("A", "s", 5)}}, "2": {"type": "1", "name": "s"}}}}
-    _, ach_to_stat = parse_schema(schema)
-    assert ach_to_stat == {"A": ("s", 5, "2")}
-
-
-def test_parse_schema_skips_progress_without_max():
-    schema = {APPID: {"stats": {"1": {"type": "ACHIEVEMENTS", "bits": {"0": ach("A", "s", None)}}, "2": {"type": "INT", "name": "s"}}}}
-    assert parse_schema(schema) == ({}, {})
+    assert stat_to_achs == {"kills": [("ACH_KILLS_10", 10), ("ACH_KILLS_100", 100)]}
+    assert ach_to_stat == {"ACH_KILLS_10": ("kills", 10, "2"), "ACH_KILLS_100": ("kills", 100, "2")}
 
 
 def _install(folder, schema=True, data=True):

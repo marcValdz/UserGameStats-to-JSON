@@ -61,7 +61,7 @@ def test_emu_unlock_is_written_to_steam_and_emu(cfg):
     assert steam_achievements(cfg)["ACH_PLAIN"] == {"earned": True, "earned_time": 1700000000}
     emu = read_json(emu_json(cfg))
     assert emu["ACH_PLAIN"] == {"earned": True, "earned_time": 1700000000}
-    assert set(emu) == {"ACH_PLAIN", "ACH_KILLS_10", "ACH_KILLS_100", "ACH_WALK_1000", "ACH_OTHER"}
+    assert set(emu) == {"ACH_PLAIN", "ACH_KILLS_10", "ACH_KILLS_100", "ACH_OTHER"}
 
 
 def test_emu_unlock_backs_up_both_files(cfg):

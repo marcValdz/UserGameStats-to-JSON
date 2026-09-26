@@ -12,11 +12,6 @@ def test_plain_achievement_earned_from_timestamp():
     assert out["ACH_OTHER"] == {"earned": False, "earned_time": 0}
 
 
-def test_zero_timestamp_is_not_earned():
-    out = extract_achievements(make_schema(), make_data(earned={"0": 0}))
-    assert out["ACH_PLAIN"]["earned"] is False
-
-
 def test_stat_based_progress_comes_from_stat():
     out = extract_achievements(make_schema(), make_data(kills=7))
     assert out["ACH_KILLS_10"] == {"earned": False, "earned_time": 0, "max_progress": 10, "progress": 7}

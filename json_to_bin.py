@@ -3,8 +3,6 @@ import time
 from config import load_config
 from utils import console, load_steam_stats, nat_key, parse_schema, read_json, write_bin, write_json
 
-FLOAT_STAT_TYPES = ("2", "FLOAT", "3", "AVGRATE")
-
 
 def to_signed_int32(value):
     """Convert an unsigned 32-bit value into signed 32-bit for VDF binary storage."""
@@ -73,7 +71,6 @@ def apply_achievements(merged, schema, data):
     cache = data.get("cache", {})
 
     _, ach_to_stat = parse_schema(schema)
-    float_stats = {stat_id for appid in schema for stat_id, stat in schema[appid]["stats"].items() if stat.get("type") in FLOAT_STAT_TYPES}
 
     # --- Pass 1: raise each stat to the value its achievements imply ---
     # Earned achievements imply at least their max_val. Progress in `merged` is capped
@@ -81,8 +78,6 @@ def apply_achievements(merged, schema, data):
     # ever raised, never lowered.
     implied_value = {}  # cache_key -> int
     for ach_name, (_, max_val, cache_key) in ach_to_stat.items():
-        if cache_key is None:  # progress stat missing from the schema
-            continue
         state = merged.get(ach_name, {})
         progress = state.get("progress", 0)
         effective = max(progress, max_val) if state.get("earned") else progress
@@ -92,7 +87,7 @@ def apply_achievements(merged, schema, data):
         if value <= cache.get(cache_key, {}).get("data", 0):
             continue
         group = cache.setdefault(cache_key, {})
-        group["data"] = float(value) if cache_key in float_stats else to_signed_int32(value)
+        group["data"] = to_signed_int32(value)
         group["state"] = 2
 
     # --- Pass 2: write bitmasks and timestamps ---

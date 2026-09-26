@@ -23,11 +23,11 @@ def make_schema():
                         "0": ach("ACH_PLAIN"),
                         "1": ach("ACH_KILLS_10", "kills", 10),
                         "2": ach("ACH_KILLS_100", "kills", 100),
-                        "3": ach("ACH_WALK_1000", "distance", 1000),
-                        "4": ach("ACH_OTHER"),
+                        "3": ach("ACH_OTHER"),
                     },
                 },
                 "2": {"type": "INT", "name": "kills", "min": 0, "default": 0},
+                # Float stats exist in real schemas but never drive achievement progress
                 "3": {"type": "FLOAT", "name": "distance", "default": 0},
                 "4": {"type": "INT", "name": "unrelated", "default": 0},
             },

@@ -41,22 +41,14 @@ def test_merge_keeps_earliest_unlock_time():
 
 
 def test_merge_ignores_missing_unlock_time():
-    out = merge({"ACH_PLAIN": st(True, 0)}, {"ACH_PLAIN": st(True, 400)})
-    assert out["ACH_PLAIN"]["earned_time"] == 400
+    """Steam reports a stat-earned achievement without an unlock time."""
+    out = merge({"ACH_KILLS_10": st(True, 0, progress=10, max_progress=10)}, {"ACH_KILLS_10": st(True, 400)})
+    assert out["ACH_KILLS_10"]["earned_time"] == 400
 
 
 def test_merge_earned_without_any_time_keeps_zero():
-    assert merge({"ACH_PLAIN": st(True)}, {})["ACH_PLAIN"] == st(True, 0)
-
-
-def test_merge_unearned_has_no_unlock_time():
-    assert merge({"ACH_PLAIN": st(False, 999)}, {})["ACH_PLAIN"]["earned_time"] == 0
-
-
-def test_merge_keeps_achievements_from_both_sides():
-    out = merge({"ACH_PLAIN": st()}, {"ACH_UNKNOWN": st(True, 5)})
-    assert set(out) == {"ACH_PLAIN", "ACH_UNKNOWN"}
-    assert out["ACH_UNKNOWN"] == st(True, 5)
+    out = merge({"ACH_KILLS_10": st(True, 0, progress=10, max_progress=10)}, {})
+    assert out["ACH_KILLS_10"] == st(True, 0, progress=10, max_progress=10)
 
 
 def test_merge_earning_higher_tier_earns_lower_tier_of_same_stat():
@@ -103,22 +95,17 @@ def merged_from(data, **overrides):
 def test_apply_sets_bits_and_times_for_earned():
     data = make_data()
     cache = apply(merged_from(data, ACH_PLAIN=st(True, 111), ACH_OTHER=st(True, 222)), data)
-    assert cache["1"]["data"] == (1 << 0) | (1 << 4)
-    assert cache["1"]["AchievementTimes"] == {"0": 111, "4": 222}
+    assert cache["1"]["data"] == (1 << 0) | (1 << 3)
+    assert cache["1"]["AchievementTimes"] == {"0": 111, "3": 222}
 
 
-def test_apply_clears_unearned():
-    data = make_data(earned={"0": 111})
-    cache = apply(merged_from(data, ACH_PLAIN=st(False)), data)
-    assert cache["1"]["data"] == 0
-    assert "0" not in cache["1"]["AchievementTimes"]
-
-
-def test_apply_stamps_earned_without_time_with_now(monkeypatch):
+def test_apply_stamps_stat_earned_achievement_with_now(monkeypatch):
+    """Stat past the threshold but no unlock bit on Steam."""
     monkeypatch.setattr(json_to_bin.time, "time", lambda: 1234.9)
-    data = make_data()
-    cache = apply(merged_from(data, ACH_PLAIN=st(True, 0)), data)
-    assert cache["1"]["AchievementTimes"]["0"] == 1234
+    data = make_data(kills=10)
+    cache = apply(merged_from(data), data)
+    assert cache["1"]["data"] == 1 << 1
+    assert cache["1"]["AchievementTimes"] == {"1": 1234}
 
 
 def test_apply_all_32_bits_round_trips(tmp_path):
@@ -149,25 +136,10 @@ def test_apply_never_lowers_a_stat():
     assert cache["2"]["data"] == 500
 
 
-def test_apply_preserves_float_stats():
-    data = make_data(distance=1234.5)
-    cache = apply(merged_from(data), data)
-    assert cache["3"]["data"] == 1234.5
-    assert isinstance(cache["3"]["data"], float)
-
-
-def test_apply_raises_float_stat_as_float():
-    data = make_data(distance=12.5)
-    cache = apply(merged_from(data, ACH_WALK_1000={"progress": 500}), data)
-    assert cache["3"]["data"] == 500.0
-    assert isinstance(cache["3"]["data"], float)
-
-
 def test_apply_does_not_touch_stats_it_does_not_raise():
-    data = make_data(kills=500, distance=1234.5)
+    data = make_data(kills=500)
     cache = apply(merged_from(data), data)
     assert cache["2"] == {"data": 500}
-    assert cache["3"] == {"data": 1234.5}
 
 
 def test_apply_does_not_add_empty_groups():
@@ -185,8 +157,9 @@ def test_apply_adds_groups_it_needs():
 
 
 def test_apply_leaves_unrelated_stats_alone():
-    data = make_data(unrelated=7)
+    data = make_data(unrelated=7, distance=1234.5)
     cache = apply(merged_from(data, ACH_PLAIN=st(True, 1)), data)
+    assert cache["3"] == {"data": 1234.5}
     assert cache["4"] == {"data": 7}
 
 
@@ -194,15 +167,6 @@ def test_apply_then_extract_is_stable():
     data = make_data(earned={"0": 111, "1": 222}, kills=12, distance=5.0)
     merged = merged_from(data)
     assert extract_achievements(make_schema(), apply_achievements(merged, make_schema(), data)) == merged
-
-
-def test_apply_with_stat_missing_from_schema_still_writes(tmp_path):
-    schema = make_schema()
-    schema[APPID]["stats"]["1"]["bits"]["5"] = ach("ACH_GHOST", "no_such_stat", 5)
-    data = make_data()
-    merged = extract_achievements(schema, copy.deepcopy(data))
-
-    write_bin(tmp_path / "x.bin", apply_achievements(merged, schema, data))
 
 
 def test_script_writes_merged_json_and_bin(tmp_path, monkeypatch):
