@@ -1,7 +1,7 @@
 import time
 
-from utils import console, nat_key, read_json, write_json, write_bin, load_steam_stats, parse_schema
 from config import load_config
+from utils import console, load_steam_stats, nat_key, parse_schema, read_json, write_bin, write_json
 
 
 def to_signed_int32(value):
@@ -48,11 +48,11 @@ def merge_achievements(base, patch, schema):
             earned = b.get("earned", False) or p.get("earned", False)
 
         merged["earned"] = earned
-        
+
         # Pull timestamps, ignoring 0 or None
         bt = b.get("earned_time")
         pt = p.get("earned_time")
-        
+
         if earned:
             # Filter out falsy timestamps (0 or None)
             valid_times = [t for t in [bt, pt] if t]
@@ -76,7 +76,7 @@ def apply_achievements(merged, schema, data):
     # For each stat, take the max effective value across all sharing achievements.
     # Earned achievements contribute at least their max_val as a floor.
     stat_true_value = {}  # cache_key -> int
-    for ach_name, (operand, max_val, cache_key) in ach_to_stat.items():
+    for ach_name, (_, max_val, cache_key) in ach_to_stat.items():
         state = merged.get(ach_name, {})
         progress = state.get("progress", 0)
         effective = max(progress, max_val) if state.get("earned") else progress

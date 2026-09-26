@@ -1,5 +1,5 @@
-from utils import console, nat_key, is_stat_based, load_steam_stats, write_json, parse_schema
 from config import load_config
+from utils import console, is_stat_based, load_steam_stats, nat_key, parse_schema, write_json
 
 
 def extract_achievements(schema, data):
@@ -67,7 +67,6 @@ def main():
 
     userid = cfg["userid"]
     steam_path = cfg["steam_path"]
-    emu_path = cfg["emu_path"]
 
     appid = input("AppID: ")
 

@@ -2,16 +2,16 @@ import argparse
 import os
 import shutil
 import subprocess
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
 from rich.status import Status
 from rich.table import Table
 
-from utils import console, read_json, write_json, write_bin, load_steam_stats
 from bin_to_json import extract_achievements
-from json_to_bin import merge_achievements, apply_achievements
 from config import load_config
+from json_to_bin import apply_achievements, merge_achievements
+from utils import console, load_steam_stats, read_json, write_bin, write_json
 
 
 def diff_achievements(steam, merged_ach):

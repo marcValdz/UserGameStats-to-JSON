@@ -1,0 +1,10 @@
+[tool.ruff]
+line-length = 180
+target-version = "py311"
+extend-exclude = ["activate"]
+
+[tool.ruff.format]
+line-ending = "lf"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP"]

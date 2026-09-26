@@ -1,9 +1,9 @@
 # utils.py
-import vdf
 import json
 import re
 from pathlib import Path
 
+import vdf
 from rich.console import Console
 
 console = Console(log_time=True, record=True)
@@ -28,7 +28,7 @@ def write_bin(path, data):
 
 
 def read_json(path):
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -77,10 +77,10 @@ def parse_schema(schema):
     for appid in schema:
         # build operand -> cache_key from INT stats first
         operand_to_cache_key = {stat["name"]: stat_id for stat_id, stat in schema[appid]["stats"].items() if stat.get("name")}
-        for stat_id, stat in schema[appid]["stats"].items():
+        for stat in schema[appid]["stats"].values():
             if stat.get("type") not in ("4", "ACHIEVEMENTS"):
                 continue
-            for i, ach in stat.get("bits", {}).items():
+            for ach in stat.get("bits", {}).values():
                 name = ach["name"]
                 prog_info = ach.get("progress")
                 if not is_stat_based(prog_info):
