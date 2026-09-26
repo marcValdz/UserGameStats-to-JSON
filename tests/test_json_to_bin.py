@@ -156,6 +156,34 @@ def test_apply_preserves_float_stats():
     assert isinstance(cache["3"]["data"], float)
 
 
+def test_apply_raises_float_stat_as_float():
+    data = make_data(distance=12.5)
+    cache = apply(merged_from(data, ACH_WALK_1000={"progress": 500}), data)
+    assert cache["3"]["data"] == 500.0
+    assert isinstance(cache["3"]["data"], float)
+
+
+def test_apply_does_not_touch_stats_it_does_not_raise():
+    data = make_data(kills=500, distance=1234.5)
+    cache = apply(merged_from(data), data)
+    assert cache["2"] == {"data": 500}
+    assert cache["3"] == {"data": 1234.5}
+
+
+def test_apply_does_not_add_empty_groups():
+    data = {"cache": {"crc": 0, "PendingChanges": 0}}
+    merged = extract_achievements(make_schema(), copy.deepcopy(data))
+    assert apply_achievements(merged, make_schema(), data) == {"cache": {"crc": 0, "PendingChanges": 0}}
+
+
+def test_apply_adds_groups_it_needs():
+    data = {"cache": {"crc": 0, "PendingChanges": 0}}
+    merged = merged_from(data, ACH_PLAIN=st(True, 111), ACH_KILLS_10=st(True, 222))
+    cache = apply_achievements(merged, make_schema(), data)["cache"]
+    assert cache["1"] == {"AchievementTimes": {"0": 111, "1": 222}, "data": 0b11}
+    assert cache["2"] == {"data": 10, "state": 2}
+
+
 def test_apply_leaves_unrelated_stats_alone():
     data = make_data(unrelated=7)
     cache = apply(merged_from(data, ACH_PLAIN=st(True, 1)), data)

@@ -3,6 +3,8 @@ import time
 from config import load_config
 from utils import console, load_steam_stats, nat_key, parse_schema, read_json, write_bin, write_json
 
+FLOAT_STAT_TYPES = ("2", "FLOAT", "3", "AVGRATE")
+
 
 def to_signed_int32(value):
     """Convert an unsigned 32-bit value into signed 32-bit for VDF binary storage."""
@@ -71,20 +73,26 @@ def apply_achievements(merged, schema, data):
     cache = data.get("cache", {})
 
     _, ach_to_stat = parse_schema(schema)
+    float_stats = {stat_id for appid in schema for stat_id, stat in schema[appid]["stats"].items() if stat.get("type") in FLOAT_STAT_TYPES}
 
-    # --- Pass 1: resolve and write the true stat value for each stat ---
-    # For each stat, take the max effective value across all sharing achievements.
-    # Earned achievements contribute at least their max_val as a floor.
-    stat_true_value = {}  # cache_key -> int
+    # --- Pass 1: raise each stat to the value its achievements imply ---
+    # Earned achievements imply at least their max_val. Progress in `merged` is capped
+    # at max_val, so the stat's current value is read from `data`, and a stat is only
+    # ever raised, never lowered.
+    implied_value = {}  # cache_key -> int
     for ach_name, (_, max_val, cache_key) in ach_to_stat.items():
+        if cache_key is None:  # progress stat missing from the schema
+            continue
         state = merged.get(ach_name, {})
         progress = state.get("progress", 0)
         effective = max(progress, max_val) if state.get("earned") else progress
-        stat_true_value[cache_key] = max(stat_true_value.get(cache_key, 0), effective)
+        implied_value[cache_key] = max(implied_value.get(cache_key, 0), effective)
 
-    for cache_key, value in stat_true_value.items():
+    for cache_key, value in implied_value.items():
+        if value <= cache.get(cache_key, {}).get("data", 0):
+            continue
         group = cache.setdefault(cache_key, {})
-        group["data"] = to_signed_int32(value)
+        group["data"] = float(value) if cache_key in float_stats else to_signed_int32(value)
         group["state"] = 2
 
     # --- Pass 2: write bitmasks and timestamps ---
@@ -95,6 +103,8 @@ def apply_achievements(merged, schema, data):
                 continue
 
             bits = stat.get("bits", {})
+            if schema_stat_id not in cache and not any(merged.get(ach["name"], {}).get("earned") for ach in bits.values()):
+                continue  # nothing earned in a group Steam doesn't have yet
             group = cache.setdefault(schema_stat_id, {})
             times = group.setdefault("AchievementTimes", {})
 
