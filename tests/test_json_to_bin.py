@@ -35,8 +35,10 @@ def test_merge_never_unearns():
     assert out["ACH_PLAIN"] == st(True, 100)
 
 
-def test_merge_keeps_earliest_unlock_time():
-    out = merge({"ACH_PLAIN": st(True, 300)}, {"ACH_PLAIN": st(True, 200)})
+@pytest.mark.parametrize("steam_time, emu_time", [(300, 200), (200, 300)])
+def test_merge_keeps_earliest_unlock_time_from_either_side(steam_time, emu_time):
+    """The actual unlock time is whichever was earliest, from either side."""
+    out = merge({"ACH_PLAIN": st(True, steam_time)}, {"ACH_PLAIN": st(True, emu_time)})
     assert out["ACH_PLAIN"]["earned_time"] == 200
 
 

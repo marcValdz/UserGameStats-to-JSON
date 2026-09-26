@@ -5,7 +5,7 @@ import pytest
 
 import main as app
 from bin_to_json import extract_achievements
-from factories import APPID, USERID, make_data, make_schema
+from factories import APPID, SPARSE_APPID, USERID, make_data, make_schema, make_sparse_schema
 from utils import read_bin, read_json, write_bin, write_json
 
 
@@ -157,6 +157,30 @@ def test_fallback_schema_builds_steam_files_from_emu(cfg):
 
     assert read_bin(cfg["stats_path"] / f"UserGameStatsSchema_{APPID}.bin") == make_schema()
     assert steam_achievements(cfg)["ACH_PLAIN"] == {"earned": True, "earned_time": 1700000000}
+
+
+def test_emu_complete_steam_partial_with_sparse_groups(cfg):
+    """Emu at 100%, Steam's server copy has a few unlocks with later times."""
+    schema = make_sparse_schema()
+    write_bin(cfg["stats_path"] / f"UserGameStatsSchema_{SPARSE_APPID}.bin", schema)
+    bin_path = cfg["stats_path"] / f"UserGameStats_{USERID}_{SPARSE_APPID}.bin"
+    write_bin(bin_path, {"cache": {"crc": 912209226, "PendingChanges": 0, "3": {"data": 1, "AchievementTimes": {"0": 1787142250}}}})
+    emu = {name: {"earned": True, "earned_time": 1708234313 + i} for i, name in enumerate(["ACH_16", "ACH_17", "ACH_31", "ACH_A", "ACH_B"])}
+    emu_path = cfg["saves_path"] / SPARSE_APPID / "achievements.json"
+    emu_path.parent.mkdir()
+    write_json(emu_path, emu)
+    emu_before = emu_path.read_bytes()
+
+    app.main([SPARSE_APPID])
+
+    cache = read_bin(bin_path)["cache"]
+    assert (cache["crc"], cache["PendingChanges"]) == (912209226, 0)
+    assert "1" not in cache  # empty achievement group stays absent
+    assert cache["2"]["data"] & 0xFFFFFFFF == (1 << 16) | (1 << 17) | (1 << 31)
+    assert cache["3"]["data"] == 0b101  # bit position 1 is skipped by the schema
+    steam = extract_achievements(schema, read_bin(bin_path))
+    assert {name: s["earned_time"] for name, s in steam.items()} == {name: s["earned_time"] for name, s in emu.items()}
+    assert emu_path.read_bytes() == emu_before
 
 
 def test_run_writes_session_log(cfg):

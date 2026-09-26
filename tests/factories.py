@@ -35,6 +35,24 @@ def make_schema():
     }
 
 
+SPARSE_APPID = "200"
+
+
+def make_sparse_schema():
+    """An empty achievement group, a group whose bit positions start at 16, and a group that skips a bit position."""
+    return {
+        SPARSE_APPID: {
+            "gamename": "Sparse Test Game",
+            "version": 1,
+            "stats": {
+                "1": {"type": "ACHIEVEMENTS", "bits": {}},
+                "2": {"type": "ACHIEVEMENTS", "bits": {"16": ach("ACH_16"), "17": ach("ACH_17"), "31": ach("ACH_31")}},
+                "3": {"type": "ACHIEVEMENTS", "bits": {"0": ach("ACH_A"), "2": ach("ACH_B")}},
+            },
+        }
+    }
+
+
 def make_data(earned=None, kills=0, distance=0.0, unrelated=7):
     """earned: {bit_index_str: unix_time}"""
     earned = earned or {}
