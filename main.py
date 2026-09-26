@@ -5,13 +5,14 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 
+from rich.markup import escape
 from rich.status import Status
 from rich.table import Table
 
 from bin_to_json import extract_achievements
 from config import load_config
 from json_to_bin import apply_achievements, merge_achievements
-from utils import console, load_steam_stats, read_bin, read_json, write_bin, write_json
+from utils import console, display_names, load_steam_stats, read_bin, read_json, write_bin, write_json
 
 
 def diff_achievements(steam, merged_ach):
@@ -31,9 +32,10 @@ def format_time(timestamp):
     return datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M")
 
 
-def print_diff_table(changes, title="Achievement Changes"):
+def print_diff_table(changes, title="Achievement Changes", labels=None):
     if not changes:
         return False
+    labels = labels or {}
 
     table = Table(title=title, header_style="bold cyan")
     table.add_column("Achievement", style="bold")
@@ -65,7 +67,7 @@ def print_diff_table(changes, title="Achievement Changes"):
         else:
             time_str = format_time(time_new) if time_new else ""
 
-        table.add_row(name, earned_str, progress_str, time_str)
+        table.add_row(escape(labels.get(name, name)), earned_str, progress_str, time_str)
 
     console.print()
     console.print(table)
@@ -151,9 +153,12 @@ def sync_app(appid, cfg):
     else:
         console.print("[yellow]⚠[/yellow] No emu data found - building `achievements.json` file from Steam data")
 
-    steam_changed = print_diff_table(diff_achievements(steam_ach, merged_ach), "Steam ← Emu")
-    emu_changed = emu_ach is not None and print_diff_table(diff_achievements(emu_ach, merged_ach), "Emu ← Steam")
-    if not steam_changed and not emu_changed:
+    labels = display_names(schema)
+    steam_changes = diff_achievements(steam_ach, merged_ach)
+    emu_changes = diff_achievements(emu_ach, merged_ach) if emu_ach is not None else []
+    print_diff_table(steam_changes, "Steam ← Emu", labels)
+    print_diff_table(emu_changes, "Emu ← Steam", labels)
+    if not steam_changes and not emu_changes:
         console.print("\n[dim]No new achievements to sync (everything is up to date).[/dim]")
 
     # --- 3. BACKUPS & FILE WRITING ---

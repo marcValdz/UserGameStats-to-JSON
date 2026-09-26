@@ -58,6 +58,19 @@ def load_steam_stats(folder, userid, appid, fallback=None):
     return schema, data, is_fallback
 
 
+def display_names(schema):
+    """Map each achievement's API name to its English display name, falling back to the API name."""
+    names = {}
+    for appid in schema:
+        for stat in schema[appid]["stats"].values():
+            for ach in stat.get("bits", {}).values():
+                name = ach.get("display", {}).get("name")
+                if isinstance(name, dict):
+                    name = name.get("english")
+                names[ach["name"]] = name or ach["name"]
+    return names
+
+
 def parse_schema(schema):
     """
     Walk the schema once and return two lookup maps:

@@ -31,8 +31,8 @@ def emu_json(cfg):
     return cfg["saves_path"] / APPID / "achievements.json"
 
 
-def install_steam(cfg, data):
-    write_bin(cfg["stats_path"] / f"UserGameStatsSchema_{APPID}.bin", make_schema())
+def install_steam(cfg, data, schema=None):
+    write_bin(cfg["stats_path"] / f"UserGameStatsSchema_{APPID}.bin", schema or make_schema())
     write_bin(steam_bin(cfg), data)
 
 
@@ -210,6 +210,33 @@ def test_one_failing_appid_does_not_stop_the_rest(cfg):
 
     assert emu_json(cfg).exists()
     assert Path("session.log").exists()
+
+
+# --- output ------------------------------------------------------------------
+
+
+def test_changes_are_listed_by_display_name(cfg, capsys):
+    schema = make_schema()
+    schema[APPID]["stats"]["1"]["bits"]["0"]["display"]["name"]["english"] = "First Steps"
+    install_steam(cfg, make_data(), schema)
+    install_emu(cfg, {"ACH_PLAIN": {"earned": True, "earned_time": 1700000000}})
+
+    app.main([APPID])
+
+    out = capsys.readouterr().out
+    assert "First Steps" in out
+    assert "ACH_PLAIN" not in out
+
+
+def test_changes_fall_back_to_api_name_without_display_name(cfg, capsys):
+    schema = make_schema()
+    del schema[APPID]["stats"]["1"]["bits"]["0"]["display"]
+    install_steam(cfg, make_data(), schema)
+    install_emu(cfg, {"ACH_PLAIN": {"earned": True, "earned_time": 1700000000}})
+
+    app.main([APPID])
+
+    assert "ACH_PLAIN" in capsys.readouterr().out
 
 
 # --- CLI ---------------------------------------------------------------------
