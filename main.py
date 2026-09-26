@@ -11,7 +11,7 @@ from rich.table import Table
 from bin_to_json import extract_achievements
 from config import load_config
 from json_to_bin import apply_achievements, merge_achievements
-from utils import console, load_steam_stats, read_json, write_bin, write_json
+from utils import console, load_steam_stats, read_bin, read_json, write_bin, write_json
 
 
 def diff_achievements(steam, merged_ach):
@@ -26,12 +26,11 @@ def diff_achievements(steam, merged_ach):
     return changes
 
 
-def print_diff_table(changes):
+def print_diff_table(changes, title="Achievement Changes"):
     if not changes:
-        console.print("\n[dim]No new achievements to sync (everything is up to date).[/dim]")
         return False
 
-    table = Table(title="Achievement Changes", header_style="bold cyan")
+    table = Table(title=title, header_style="bold cyan")
     table.add_column("Achievement", style="bold")
     table.add_column("Earned", justify="center")
     table.add_column("Progress", justify="right")
@@ -67,7 +66,18 @@ def backup_file(path: Path):
     timestamp = datetime.now().strftime("%H-%M-%S_%m-%d-%Y")
     backup = path.with_suffix(f"{path.suffix}.{timestamp}.bak")
 
-    path.replace(backup)
+    shutil.copy2(path, backup)
+
+
+def write_if_changed(path: Path, data, read, write):
+    """Write data unless the file already holds it, backing up whatever gets replaced."""
+    if path.exists():
+        if read(path) == data:
+            return False
+        backup_file(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    write(path, data)
+    return True
 
 
 def ensure_steam_closed():
@@ -140,37 +150,36 @@ def main(argv=None):
 
             steam_bin = apply_achievements(merged_ach, schema, data)
 
-        has_changes = False
-
         console.print(f"[green]✓[/green] Steam data loaded ({len(steam_ach)} achievements found)")
         if is_fallback:
             console.print("[yellow]⚠[/yellow] Local Steam data missing. Generating fresh Steam .bin using your emulator history")
         elif emu_ach is not None:
             console.print(f"[green]✓[/green] Emu achievements merged from [dim]{emu_ach_path}[/dim]")
-            changes = diff_achievements(steam_ach, merged_ach)
-            has_changes = print_diff_table(changes)
         else:
             console.print("[yellow]⚠[/yellow] No emu data found - building `achievements.json` file from Steam data")
 
+        steam_changed = print_diff_table(diff_achievements(steam_ach, merged_ach), "Steam ← Emu")
+        emu_changed = emu_ach is not None and print_diff_table(diff_achievements(emu_ach, merged_ach), "Emu ← Steam")
+        if not steam_changed and not emu_changed:
+            console.print("\n[dim]No new achievements to sync (everything is up to date).[/dim]")
+
         # --- 3. BACKUPS & FILE WRITING ---
+        # Each file is left alone if unchanged, otherwise backed up before being replaced.
         with Status("[cyan]Securing backups and writing files...[/cyan]", console=console):
-            if not is_fallback and emu_ach is not None and has_changes:
-                backup_file(steam_bin_path)
-                backup_file(emu_ach_path)
-            elif is_fallback:
-                if steam_schema_path.exists():
-                    backup_file(steam_schema_path)
-                steam_schema_path.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(emu_schema_path / f"UserGameStatsSchema_{appid}.bin", steam_schema_path)
+            if is_fallback:
+                schema_bin = read_bin(emu_schema_path / f"UserGameStatsSchema_{appid}.bin")
+                write_if_changed(steam_schema_path, schema_bin, read_bin, write_bin)
+            bin_written = write_if_changed(steam_bin_path, steam_bin, read_bin, write_bin)
+            json_written = write_if_changed(emu_ach_path, merged_ach, read_json, write_json)
 
-            steam_bin_path.parent.mkdir(parents=True, exist_ok=True)
-            write_bin(steam_bin_path, steam_bin)
-
-            emu_ach_path.parent.mkdir(parents=True, exist_ok=True)
-            write_json(emu_ach_path, merged_ach)
-
-        console.print(f"[green]✓[/green] Bin updated: [dim]{steam_bin_path}[/dim]")
-        console.print(f"[green]✓[/green] Emu json updated: [dim]{emu_ach_path}[/dim]")
+        if bin_written:
+            console.print(f"[green]✓[/green] Bin updated: [dim]{steam_bin_path}[/dim]")
+        else:
+            console.print(f"[dim]Bin unchanged: {steam_bin_path}[/dim]")
+        if json_written:
+            console.print(f"[green]✓[/green] Emu json updated: [dim]{emu_ach_path}[/dim]")
+        else:
+            console.print(f"[dim]Emu json unchanged: {emu_ach_path}[/dim]")
 
         earned_total = sum(1 for a in merged_ach.values() if a.get("earned"))
         console.print(f"\n[bold]Final Count:[/bold] {earned_total}/{len(merged_ach)} unlocked")

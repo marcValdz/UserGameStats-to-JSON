@@ -111,6 +111,42 @@ def test_overwritten_files_are_always_recoverable(cfg, scenario):
         assert unchanged or backed_up, f"{path.name} overwritten without backup"
 
 
+def synced_steam_data():
+    """kills=500 is past both kill thresholds, so Steam has those bits set too."""
+    return make_data(earned={"0": 1700000000, "1": 1700000001, "2": 1700000002}, kills=500)
+
+
+def test_already_in_sync_writes_nothing(cfg):
+    install_steam(cfg, synced_steam_data())
+    install_emu(cfg, extract_achievements(make_schema(), synced_steam_data()))
+    originals = {p: p.read_bytes() for p in (steam_bin(cfg), emu_json(cfg))}
+
+    app.main([APPID])
+
+    for path, before in originals.items():
+        assert path.read_bytes() == before
+        assert backups(path) == []
+
+
+def test_missing_emu_file_leaves_steam_untouched(cfg):
+    install_steam(cfg, synced_steam_data())
+    before = steam_bin(cfg).read_bytes()
+
+    app.main([APPID])
+
+    assert steam_bin(cfg).read_bytes() == before
+    assert backups(steam_bin(cfg)) == []
+
+
+def test_steam_ahead_is_not_reported_as_up_to_date(cfg, capsys):
+    install_steam(cfg, make_data(earned={"0": 1700000000}))
+    install_emu(cfg, {"ACH_PLAIN": {"earned": False, "earned_time": 0}})
+
+    app.main([APPID])
+
+    assert "up to date" not in capsys.readouterr().out
+
+
 def test_fallback_schema_builds_steam_files_from_emu(cfg):
     fallback = cfg["emu_schema_path"] / APPID
     fallback.mkdir()
@@ -200,11 +236,12 @@ def test_print_diff_table_reports_whether_there_were_changes():
     assert app.print_diff_table([("A", {"earned": False}, {"earned": True})]) is True
 
 
-def test_backup_file_moves_original_aside(tmp_path):
+def test_backup_file_copies_original(tmp_path):
+    """Copy, not move: a failed write afterwards must not leave the path empty."""
     path = tmp_path / "x.bin"
     path.write_bytes(b"original")
     app.backup_file(path)
-    assert not path.exists()
+    assert path.read_bytes() == b"original"
     assert [b.read_bytes() for b in backups(path)] == [b"original"]
 
 
